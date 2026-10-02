@@ -30,12 +30,14 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/configure-aws-credentials@v4 
         with: 
-            role-to-assume: arn:aws:iam::206135621036:role/one-dev-github-deploy-frontend
+            role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCESS_KEY}}:role/one-dev-github-deploy-frontend
             aws-region: ${{ env.AWS_REGION }}
             audience: sts.amazonaws.com
 
       - name: Set image tag (current date)
-        run: echo "IMAGE_TAG=$(TZ=Europe/Warsaw date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+        run: |
+          echo "IMAGE=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=$(TZ=Europe/Warsaw date +'%Y-%m-%d_%H_%M')" >> $GITHUB_ENV
 
       - name: Login to Amazon ECR
         id: ecr
@@ -48,5 +50,5 @@ jobs:
 
       - name: Push
         run: |
-          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          echo "Pushed: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}:latest
+          echo "Pushed: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}:latest" >> $GITHUB_STEP_SUMMARY
