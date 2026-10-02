@@ -16,12 +16,12 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // Frontend calls /api/... → Python server at http://127.0.0.1:8000/...
-      // Strip the /api prefix so FastAPI can expose /health, /users, etc.
+      // Frontend calls /api/... → Python server at http://127.0.0.1:8000/api/v1/...
+      // Same mapping as the /api/ location in nginx.conf
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+        rewrite: (path) => path.replace(/^\/api/, '/api/v1'),
       },
     },
   },
