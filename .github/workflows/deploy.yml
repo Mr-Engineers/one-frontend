@@ -1,0 +1,44 @@
+name: Build & Push to ECR
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-north-1
+  ECR_REPOSITORY: one-dev-frontend
+
+permissions:
+  id-token: write 
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/configure-aws-credentials@v4 
+        with: 
+            role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCESS_KEY }}:role/one-dev-github-deploy-frontend 
+            aws-region: ${{ env.AWS_REGION }}
+            audience: sts.amazonaws.com
+
+      - name: Set image tag (current date)
+        run: echo "IMAGE_TAG=$(TZ=Europe/Warsaw date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build
+        run: |
+          docker build \
+            -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
+
+      - name: Push
+        run: |
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          echo "Pushed: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}" >> $GITHUB_STEP_SUMMARY
