@@ -8,7 +8,7 @@ env:
   ECR_REPOSITORY: one-dev-frontend
 
 permissions:
-  id-token: write 
+  id-token: write
   contents: read
 
 jobs:
@@ -19,39 +19,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Debug OIDC claims
-        run: |
-          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r '.value')
-          PAYLOAD=$(echo "$TOKEN" | cut -d '.' -f2 | tr '_-' '/+')
-          while [ $(( ${#PAYLOAD} % 4 )) -ne 0 ]; do PAYLOAD="$PAYLOAD="; done
-          echo "$PAYLOAD" | base64 -d | jq '{sub, aud, repository, repository_id, repository_owner_id, ref, job_workflow_ref}'
-      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::206135621036:role/one-dev-github-deploy-frontend
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
       - name: Login to Amazon ECR
-        uses: aws-actions/configure-aws-credentials@v4 
-        with: 
-            role-to-assume: arn:aws:iam::206135621036:role/one-dev-github-deploy-frontend
-            aws-region: ${{ env.AWS_REGION }}
-            audience: sts.amazonaws.com
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Set image tag (current date)
         run: |
           echo "IMAGE=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}" >> $GITHUB_ENV
           echo "IMAGE_TAG=$(TZ=Europe/Warsaw date +'%Y-%m-%d_%H_%M')" >> $GITHUB_ENV
 
-      - name: Login to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
       - name: Build
         run: |
           docker build \
-            -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
-          docker build \
-            -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest .
+            -t ${{ env.IMAGE }}:${{ env.IMAGE_TAG }} \
+            -t ${{ env.IMAGE }}:latest .
 
       - name: Push
         run: |
-          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-          echo "Pushed: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}:latest" >> $GITHUB_STEP_SUMMARY
+          docker push ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.IMAGE }}:latest
+          echo "Pushed: \`${{ env.IMAGE }}:${{ env.IMAGE_TAG }}\` and \`${{ env.IMAGE }}:latest\`" >> $GITHUB_STEP_SUMMARY

@@ -2,20 +2,14 @@ name: Deploy to ECS
 
 on:
   workflow_dispatch:
-    inputs:
-      image_tag:
-        description: "Tag obrazu (np. 2026-10-02_16_45). Puste = latest"
-        required: false
-        default: "latest"
   workflow_run:
     workflows: ["Build & Push to ECR"]
     types: [completed]
 
 env:
   AWS_REGION: eu-north-1
-  ECR_REPOSITORY: one-dev-frontend
   ECS_CLUSTER: one-dev-cluster
-
+  ECS_SERVICE: one-dev-frontend
 
 permissions:
   id-token: write
@@ -27,31 +21,15 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::206135621036:role/one-dev-github-deploy-frontend
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
 
-      - name: Login to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Set image tag (current date)
-        run: |
-          echo "IMAGE=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}" >> $GITHUB_ENV
-          echo "IMAGE_TAG=$(TZ=Europe/Warsaw date +'%Y-%m-%d_%H_%M')" >> $GITHUB_ENV
-
-      - name: Build
-        run: |
-          docker build \
-            -t ${{ env.IMAGE }}:${{ env.IMAGE_TAG }} \
-            -t ${{ env.IMAGE }}:latest .
-
-
-      - name: Download current task definition
-        run: |
-          docker push ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
-          docker push ${{ env.IMAGE }}:latest
-          echo "Pushed: \`${{ env.IMAGE }}:${{ env.IMAGE_TAG }}\` and \`${{ env.IMAGE }}:latest\`" >> $GITHUB_STEP_SUMMARY
-
+      # The task definition (managed by Terraform) uses the :latest image,
+      # so a new deployment pulls the most recently pushed image.
       - name: Deploy to ECS
         run: |
           aws ecs update-service \
