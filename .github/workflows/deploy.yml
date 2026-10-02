@@ -9,6 +9,10 @@ env:
   AWS_REGION: eu-north-1
   ECR_REPOSITORY: one-dev-frontend
 
+permissions:
+  id-token: write 
+  contents: read
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
