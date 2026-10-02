@@ -9,8 +9,8 @@ FROM nginx:alpine
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
-ENV BACKEND_URL=http://backend:8000/ \
-    DNS_RESOLVER=169.254.169.253
+# Overridden by the ECS task definition (Terraform: backend_internal_url)
+ENV BACKEND_URL=http://backend:8000
 
 EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

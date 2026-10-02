@@ -11,10 +11,6 @@ server {
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
     gzip_min_length 1024;
 
-    # DNS VPC (Amazon) - backend jest rozwiązywany dynamicznie,
-    # więc nowe IP tasków backendu są łapane bez restartu nginx
-    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
-
     # Healthcheck - nie powinien przechodzić przez SPA fallback
     location = /healthz {
         access_log off;
@@ -24,10 +20,14 @@ server {
 
     # API -> backend.  /api/xyz  ->  ${BACKEND_URL}/api/v1/xyz
     # (to samo mapowanie co proxy w vite.config.ts)
+    #
+    # Statyczny proxy_pass (bez resolvera): nazwę "backend" dostarcza ECS Service Connect
+    # przez /etc/hosts, a nie DNS. Wskazuje ona na lokalny proxy Service Connect,
+    # który sam śledzi zmiany IP tasków backendu, więc restart nginx nie jest potrzebny.
+    # BACKEND_URL musi być bez ścieżki (np. http://backend:8000), żeby przeszedł URI z rewrite.
     location /api/ {
-        set $backend "${BACKEND_URL}";
         rewrite ^/api/(.*)$ /api/v1/$1 break;
-        proxy_pass $backend;
+        proxy_pass ${BACKEND_URL};
 
         proxy_http_version 1.1;
         proxy_set_header Host              $proxy_host;
