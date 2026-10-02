@@ -26,6 +26,7 @@ jobs:
         with: 
             role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCESS_KEY }}:role/one-dev-github-deploy-frontend 
             aws-region: ${{ env.AWS_REGION }}
+            audience: sts.amazonaws.com
 
       - name: Set image tag (current date)
         run: echo "IMAGE_TAG=$(TZ=Europe/Warsaw date +'%Y%m%d-%H%M%S')" >> $GITHUB_ENV
