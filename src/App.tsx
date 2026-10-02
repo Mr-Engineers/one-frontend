@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { getHealth } from '@/api'
+import { getDbTest, getHealth } from '@/api'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -10,27 +10,50 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 
-type HealthState =
+type RequestState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'ok'; payload: unknown }
   | { status: 'error'; message: string }
 
-function App() {
-  const [health, setHealth] = useState<HealthState>({ status: 'idle' })
+function useApiCall(fetcher: () => Promise<unknown>) {
+  const [state, setState] = useState<RequestState>({ status: 'idle' })
 
-  async function checkBackend() {
-    setHealth({ status: 'loading' })
+  async function run() {
+    setState({ status: 'loading' })
     try {
-      const data = await getHealth()
-      setHealth({ status: 'ok', payload: data })
+      const data = await fetcher()
+      setState({ status: 'ok', payload: data })
     } catch (err) {
-      setHealth({
+      setState({
         status: 'error',
         message: err instanceof Error ? err.message : 'Unknown error',
       })
     }
   }
+
+  return [state, run] as const
+}
+
+function RequestResult({ state }: { state: RequestState }) {
+  if (state.status === 'ok') {
+    return (
+      <pre className="overflow-x-auto rounded-md bg-muted p-3 text-left text-sm">
+        {JSON.stringify(state.payload, null, 2)}
+      </pre>
+    )
+  }
+
+  if (state.status === 'error') {
+    return <p className="text-sm text-destructive">{state.message}</p>
+  }
+
+  return null
+}
+
+function App() {
+  const [health, checkBackend] = useApiCall(getHealth)
+  const [dbTest, checkDatabase] = useApiCall(getDbTest)
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background p-6">
@@ -46,16 +69,16 @@ function App() {
           <Button onClick={checkBackend} disabled={health.status === 'loading'}>
             {health.status === 'loading' ? 'Checking…' : 'Check /api/health'}
           </Button>
+          <RequestResult state={health} />
 
-          {health.status === 'ok' && (
-            <pre className="overflow-x-auto rounded-md bg-muted p-3 text-left text-sm">
-              {JSON.stringify(health.payload, null, 2)}
-            </pre>
-          )}
-
-          {health.status === 'error' && (
-            <p className="text-sm text-destructive">{health.message}</p>
-          )}
+          <Button
+            variant="outline"
+            onClick={checkDatabase}
+            disabled={dbTest.status === 'loading'}
+          >
+            {dbTest.status === 'loading' ? 'Querying…' : 'Read Demo table (/api/db-test)'}
+          </Button>
+          <RequestResult state={dbTest} />
         </CardContent>
       </Card>
     </main>
