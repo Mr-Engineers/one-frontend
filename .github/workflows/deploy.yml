@@ -30,7 +30,7 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/configure-aws-credentials@v4 
         with: 
-            role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCESS_KEY }}:role/one-dev-github-deploy-frontend 
+            role-to-assume: arn:aws:iam::206135621036:role/one-dev-github-deploy-frontend
             aws-region: ${{ env.AWS_REGION }}
             audience: sts.amazonaws.com
 
