@@ -1,32 +1,34 @@
-name: Build & Push to ECR
+name: Deploy to ECS
 
 on:
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag obrazu (np. 2026-10-02_16_45). Puste = latest"
+        required: false
+        default: "latest"
+  workflow_run:
+    workflows: ["Build & Push to ECR"]
+    types: [completed]
 
 env:
   AWS_REGION: eu-north-1
   ECR_REPOSITORY: one-dev-frontend
   ECS_CLUSTER: one-dev-cluster
-  ECS_SERVICE: one-dev-frontend
+
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  build-and-push:
+  deploy:
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::206135621036:role/one-dev-github-deploy-frontend
-          aws-region: ${{ env.AWS_REGION }}
-          audience: sts.amazonaws.com
 
       - name: Login to Amazon ECR
         id: ecr
@@ -43,7 +45,8 @@ jobs:
             -t ${{ env.IMAGE }}:${{ env.IMAGE_TAG }} \
             -t ${{ env.IMAGE }}:latest .
 
-      - name: Push
+
+      - name: Download current task definition
         run: |
           docker push ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
           docker push ${{ env.IMAGE }}:latest
