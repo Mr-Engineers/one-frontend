@@ -47,6 +47,8 @@ jobs:
         run: |
           docker build \
             -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }} .
+          docker build \
+            -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest .
 
       - name: Push
         run: |
