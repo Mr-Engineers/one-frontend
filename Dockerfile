@@ -3,6 +3,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps
 COPY . .
+
+# Vite inlines VITE_* into the bundle at build time, so they must be set here
+# (CI passes them from SSM Parameter Store with --build-arg)
+ARG VITE_API_BASE_URL
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
 RUN npm run build
 
 FROM nginx:alpine

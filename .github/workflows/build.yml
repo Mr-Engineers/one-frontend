@@ -9,6 +9,8 @@ on:
 env:
   AWS_REGION: eu-north-1
   ECR_REPOSITORY: one-dev-frontend
+  # Build-time config (VITE_*), managed by Terraform in one-infrastructure
+  SSM_PREFIX: /one/dev/frontend
 
 permissions:
   id-token: write
@@ -38,9 +40,37 @@ jobs:
           echo "IMAGE=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}" >> $GITHUB_ENV
           echo "IMAGE_TAG=$(TZ=Europe/Warsaw date +'%Y-%m-%d_%H_%M')" >> $GITHUB_ENV
 
+      # Vite inlines these into the bundle, so they are needed at build time, not in ECS.
+      # Parameters still at the Terraform placeholder CHANGE_ME count as not set.
+      - name: Read build config from SSM
+        run: |
+          # VITE_API_BASE_URL is optional (the app defaults to /api), the others are required
+          for name in VITE_API_BASE_URL VITE_SUPABASE_URL VITE_SUPABASE_PUBLISHABLE_KEY; do
+            if value=$(aws ssm get-parameter --name "$SSM_PREFIX/$name" \
+                         --query Parameter.Value --output text 2>/tmp/ssm-error); then
+              if [ "$value" = "CHANGE_ME" ]; then value=""; fi
+            elif grep -q ParameterNotFound /tmp/ssm-error; then
+              value=""
+            else
+              cat /tmp/ssm-error
+              exit 1
+            fi
+
+            if [ -n "$value" ]; then
+              echo "$name=$value" >> "$GITHUB_ENV"
+            elif [ "$name" != "VITE_API_BASE_URL" ]; then
+              echo "::error::SSM parameter $SSM_PREFIX/$name is not set (the app fails without it)"
+              exit 1
+            fi
+          done
+
+      # --build-arg NAME without a value takes it from the environment; unset ones are skipped
       - name: Build
         run: |
           docker build \
+            --build-arg VITE_API_BASE_URL \
+            --build-arg VITE_SUPABASE_URL \
+            --build-arg VITE_SUPABASE_PUBLISHABLE_KEY \
             -t ${{ env.IMAGE }}:${{ env.IMAGE_TAG }} \
             -t ${{ env.IMAGE }}:latest .
 
