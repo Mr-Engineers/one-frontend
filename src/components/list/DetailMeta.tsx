@@ -119,14 +119,12 @@ export function JsonBlock({ value }: { value: unknown }) {
 export function CollapsibleDetails({
   summary,
   children,
-  defaultOpen = false,
 }: {
   summary: string
   children: ReactNode
-  defaultOpen?: boolean
 }) {
   return (
-    <details className="group" defaultOpen={defaultOpen}>
+    <details className="group">
       <summary className="text-muted-foreground hover:text-foreground cursor-pointer text-xs underline-offset-2 hover:underline">
         {summary}
       </summary>

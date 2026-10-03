@@ -1,15 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { RiAddLine } from '@remixicon/react'
 
 import { ConnectMcpWizard } from '@/components/mcp/ConnectMcpWizard'
-import { AgentBadge, McpHealthBadge } from '@/components/status/StatusBadge'
+import { McpHealthBadge } from '@/components/status/StatusBadge'
 import { Button } from '@/components/ui/button'
-import { routes } from '@/lib/routes'
 import { cn } from '@/lib/utils'
 import {
-  agentsUsingMcp,
-  mockAgents,
   mockMcpServers,
   type McpKind,
   type McpServer,
@@ -92,8 +88,6 @@ export function McpRegistryPage() {
 }
 
 function McpServerCard({ server }: { server: McpServer }) {
-  const usedBy = agentsUsingMcp(server.id, mockAgents)
-
   return (
     <article className="border-border bg-background flex flex-col gap-2 border px-4 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -113,28 +107,6 @@ function McpServerCard({ server }: { server: McpServer }) {
           {server.description}
         </p>
       ) : null}
-      <div className="border-border mt-1 border-t pt-2">
-        <p className="text-muted-foreground mb-1.5 font-mono text-[10px] uppercase">
-          Used by {usedBy.length} agent{usedBy.length === 1 ? '' : 's'}
-        </p>
-        {usedBy.length === 0 ? (
-          <p className="text-muted-foreground text-[11px]">
-            Not used yet — add it on an agent&apos;s Access tab.
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {usedBy.map((agent) => (
-              <Link
-                key={agent.id}
-                to={routes.agentDetail(agent.id)}
-                className="inline-flex"
-              >
-                <AgentBadge agentId={agent.id} />
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
     </article>
   )
 }
