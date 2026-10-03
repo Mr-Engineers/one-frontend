@@ -2,6 +2,7 @@ import { RiAddLine, RiCloseLine } from '@remixicon/react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
 import {
   condOpLabel,
   condOpNeedsValue,
@@ -194,67 +195,73 @@ function LeafRow({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <select
-        className="border-border bg-background h-8 min-w-[7.5rem] rounded-sm border px-2 font-mono text-[11px]"
+    <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_auto] items-center gap-1.5">
+      <Select
+        className="min-w-0"
+        size="sm"
+        mono
+        aria-label="Field"
         value={leaf.field}
-        onChange={(e) => setField(e.target.value as CondField)}
-      >
-        {(fields.length ? fields : [{ id: leaf.field, label: leaf.field }]).map(
-          (f) => (
-            <option key={f.id} value={f.id}>
-              {f.label}
-            </option>
-          ),
-        )}
-      </select>
-      <select
-        className="border-border bg-background h-8 min-w-[5rem] rounded-sm border px-2 font-mono text-[11px]"
+        onValueChange={(next) => setField(next as CondField)}
+        options={(fields.length
+          ? fields
+          : [{ id: leaf.field, label: leaf.field }]
+        ).map((f) => ({
+          value: f.id,
+          label: f.label,
+        }))}
+      />
+      <Select
+        className="min-w-0"
+        size="sm"
+        mono
+        aria-label="Operator"
         value={leaf.op}
-        onChange={(e) =>
-          onChange({ ...leaf, op: e.target.value as CondOp, value: leaf.value })
+        onValueChange={(next) =>
+          onChange({ ...leaf, op: next as CondOp, value: leaf.value })
         }
-      >
-        {ops.map((op) => (
-          <option key={op} value={op}>
-            {condOpLabel(op)}
-          </option>
-        ))}
-      </select>
+        options={ops.map((op) => ({
+          value: op,
+          label: condOpLabel(op),
+        }))}
+      />
       {needsValue ? (
         fieldDef?.type === 'enum' && fieldDef.options ? (
           leaf.op === 'in' || leaf.op === 'not_in' ? (
             <Input
-              className="h-8 min-w-[8rem] flex-1 font-mono text-[11px]"
+              className="h-7 min-w-0 font-mono text-[11px]"
               placeholder="a,b,c"
               value={leaf.value}
               onChange={(e) => onChange({ ...leaf, value: e.target.value })}
             />
           ) : (
-            <select
-              className="border-border bg-background h-8 min-w-[7rem] flex-1 rounded-sm border px-2 font-mono text-[11px]"
+            <Select
+              className="min-w-0"
+              size="sm"
+              mono
+              aria-label="Value"
               value={leaf.value}
-              onChange={(e) => onChange({ ...leaf, value: e.target.value })}
-            >
-              {fieldDef.options.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+              onValueChange={(next) => onChange({ ...leaf, value: next })}
+              options={fieldDef.options.map((opt) => ({
+                value: opt,
+                label: opt,
+              }))}
+            />
           )
         ) : (
           <Input
-            className="h-8 min-w-[6rem] flex-1 font-mono text-[11px]"
+            className="h-7 min-w-0 font-mono text-[11px]"
             type={fieldDef?.type === 'number' ? 'number' : 'text'}
             value={leaf.value}
             onChange={(e) => onChange({ ...leaf, value: e.target.value })}
           />
         )
-      ) : null}
+      ) : (
+        <span aria-hidden className="min-w-0" />
+      )}
       <button
         type="button"
-        className="text-muted-foreground hover:text-foreground p-1"
+        className="text-muted-foreground hover:text-foreground shrink-0 p-1"
         aria-label="Remove condition"
         onClick={onRemove}
       >

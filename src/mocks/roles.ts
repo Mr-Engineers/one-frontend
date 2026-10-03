@@ -1,6 +1,18 @@
-import { AGENT_IDS } from './agents'
 import { mockMcpServers } from './mcp'
-import type { Role, ServerGrant } from './types'
+import type {
+  Agent,
+  AgentPosture,
+  PostureTool,
+  Role,
+  ServerGrant,
+} from './types'
+
+export const ROLE_IDS = {
+  purchasingOperator: 'role_purchasing_operator',
+  purchasingReadonly: 'role_purchasing_readonly',
+  supportReader: 'role_support_reader',
+  supportWriter: 'role_support_writer',
+} as const
 
 function toolsFor(serverId: string): string[] {
   return mockMcpServers.find((s) => s.id === serverId)?.tools ?? []
@@ -36,19 +48,9 @@ export function countGrantedTools(role: Role): number {
   }, 0)
 }
 
-/** Flat effective allow-list for preview (deny-by-default). */
-export function effectivePermissions(role: Role): Array<{
-  serverId: string
-  serverName: string
-  tool: string
-  via: 'server' | 'tool'
-}> {
-  const out: Array<{
-    serverId: string
-    serverName: string
-    tool: string
-    via: 'server' | 'tool'
-  }> = []
+/** Flat effective allow-list for a role template (deny-by-default). */
+export function effectivePermissions(role: Role): PostureTool[] {
+  const out: PostureTool[] = []
 
   for (const g of role.grants) {
     for (const [tool, allowed] of Object.entries(g.tools)) {
@@ -67,14 +69,57 @@ export function effectivePermissions(role: Role): Array<{
   return out.sort((a, b) => a.tool.localeCompare(b.tool))
 }
 
+/**
+ * Per-agent posture: role grants ∩ attached MCPs.
+ * Surfaces grants on unattached servers and attaches with no grants.
+ */
+export function effectiveAgentPosture(agent: Agent): AgentPosture {
+  const role = agent.roleId ? findRole(agent.roleId) : undefined
+  const attached = new Set(agent.mcpServerIds)
+
+  if (!role) {
+    return {
+      role: null,
+      callable: [],
+      unreachable: [],
+      attachedWithoutGrants: agent.mcpServerIds.filter((id) =>
+        Boolean(mockMcpServers.find((s) => s.id === id)),
+      ),
+    }
+  }
+
+  const granted = effectivePermissions(role)
+  const callable: PostureTool[] = []
+  const unreachable: PostureTool[] = []
+
+  for (const entry of granted) {
+    if (attached.has(entry.serverId)) callable.push(entry)
+    else unreachable.push(entry)
+  }
+
+  const attachedWithoutGrants = agent.mcpServerIds.filter(
+    (serverId) => !granted.some((g) => g.serverId === serverId),
+  )
+
+  return {
+    role,
+    callable,
+    unreachable,
+    attachedWithoutGrants,
+  }
+}
+
+export function findRole(id: string): Role | undefined {
+  return mockRoles.find((r) => r.id === id)
+}
+
 export const mockRoles: Role[] = [
   {
-    id: 'role_purchasing_operator',
+    id: ROLE_IDS.purchasingOperator,
     name: 'purchasing-operator',
     description:
       'Buy and checkout on Shop Catalog; notify Slack on escalations. Deny-by-default elsewhere.',
     status: 'active',
-    agentIds: [AGENT_IDS.purchasing],
     grants: [
       grant('mcp_shop', { serverWide: true }),
       grant('mcp_magazine', { serverWide: true }),
@@ -86,12 +131,11 @@ export const mockRoles: Role[] = [
     updatedAt: '2026-10-02T14:20:00Z',
   },
   {
-    id: 'role_purchasing_readonly',
+    id: ROLE_IDS.purchasingReadonly,
     name: 'purchasing-readonly',
     description:
       'Catalog browse and order history only — no cart, checkout, or outbound notify.',
     status: 'active',
-    agentIds: [],
     grants: [
       grant('mcp_shop', {
         allow: ['shop.search', 'shop.product.get', 'shop.orders.list'],
@@ -105,11 +149,10 @@ export const mockRoles: Role[] = [
     updatedAt: '2026-09-28T11:00:00Z',
   },
   {
-    id: 'role_support_reader',
+    id: ROLE_IDS.supportReader,
     name: 'support-reader',
     description: 'List tickets and read policy docs. No write or close.',
     status: 'active',
-    agentIds: [AGENT_IDS.support],
     grants: [
       grant('mcp_tickets', {
         allow: ['tickets.list', 'tickets.update', 'tickets.comment'],
@@ -123,12 +166,11 @@ export const mockRoles: Role[] = [
     updatedAt: '2026-10-01T08:40:00Z',
   },
   {
-    id: 'role_support_writer',
+    id: ROLE_IDS.supportWriter,
     name: 'support-writer',
     description:
       'Full ticket lifecycle plus DM for human handoff. No shop or broadcast Slack.',
     status: 'draft',
-    agentIds: [],
     grants: [
       grant('mcp_tickets', { serverWide: true }),
       grant('mcp_docs', { allow: ['docs.search', 'docs.get'] }),

@@ -1,5 +1,9 @@
 import type { ReactNode } from 'react'
 
+/** Shared horizontal inset for detail panels (matches close-button clearance). */
+export const DETAIL_INSET_X = 'px-4'
+export const DETAIL_INSET_HEADER = 'px-4 pr-14'
+
 export function DetailHeader({
   title,
   subtitle,
@@ -12,20 +16,24 @@ export function DetailHeader({
   actions?: ReactNode
 }) {
   return (
-    <div className="border-border flex items-start justify-between gap-4 border-b px-4 py-4 pr-14">
-      <div className="min-w-0">
+    <div
+      className={`border-border flex shrink-0 items-start justify-between gap-4 border-b py-4 ${DETAIL_INSET_HEADER}`}
+    >
+      <div className="min-w-0 flex-1">
         <h2
           id={titleId}
-          className="truncate text-sm font-medium tracking-tight"
+          className="truncate text-base font-medium tracking-tight"
         >
           {title}
         </h2>
         {subtitle ? (
-          <p className="text-muted-foreground mt-1 text-xs">{subtitle}</p>
+          <p className="text-muted-foreground mt-1 text-[13px] leading-relaxed">
+            {subtitle}
+          </p>
         ) : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        <div className="flex shrink-0 items-center gap-2 pt-0.5">{actions}</div>
       ) : null}
     </div>
   )
@@ -33,24 +41,38 @@ export function DetailHeader({
 
 export function DetailSection({
   title,
+  description,
   actions,
   children,
 }: {
   title: string
+  /** Supporting line under the title — kept on the same left edge as the title. */
+  description?: ReactNode
   actions?: ReactNode
   children: ReactNode
 }) {
   return (
-    <section className="border-border flex flex-col gap-2 border-b px-4 py-3 last:border-b-0">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-muted-foreground text-[11px] font-medium tracking-wide">
-          {title}
-        </h3>
+    <section
+      className={`border-border flex flex-col gap-3 border-b py-4 last:border-b-0 ${DETAIL_INSET_X}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-foreground text-[13px] font-medium tracking-tight">
+            {title}
+          </h3>
+          {description ? (
+            <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+              {description}
+            </p>
+          ) : null}
+        </div>
         {actions ? (
-          <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          <div className="flex shrink-0 items-center gap-2 pt-0.5">
+            {actions}
+          </div>
         ) : null}
       </div>
-      {children}
+      {children ? <div className="min-w-0">{children}</div> : null}
     </section>
   )
 }

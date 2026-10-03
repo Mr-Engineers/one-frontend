@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -114,7 +115,7 @@ export function SettingsPage() {
           <h1 className="text-sm font-medium">Workspace settings</h1>
           <p className="text-muted-foreground mt-0.5 text-xs">
             Org preferences and invite-only operator provisioning. Agent keys
-            live under Agents & auth.
+            live under Agents → Credentials.
           </p>
         </div>
         {savedFlash ? (
@@ -242,18 +243,15 @@ export function SettingsPage() {
             />
           </Field>
           <Field id="invite-role" label="Role" className="sm:w-40">
-            <select
+            <Select
               id="invite-role"
               value={inviteRole}
-              onChange={(e) => setInviteRole(e.target.value as OperatorRole)}
-              className="border-border bg-background h-8 w-full rounded-sm border px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40"
-            >
-              {INVITE_ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {role.charAt(0).toUpperCase() + role.slice(1)}
-                </option>
-              ))}
-            </select>
+              onValueChange={(next) => setInviteRole(next as OperatorRole)}
+              options={INVITE_ROLES.map((role) => ({
+                value: role,
+                label: role.charAt(0).toUpperCase() + role.slice(1),
+              }))}
+            />
           </Field>
           <Button type="submit" className="sm:mb-0">
             <RiMailSendLine className="size-3.5" />

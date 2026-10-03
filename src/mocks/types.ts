@@ -26,10 +26,10 @@ export type McpServer = {
 export type Agent = {
   id: string
   name: string
-  role: string
+  /** Role template FK — grants come from the role; reachability from mcpServerIds. */
+  roleId: string | null
   status: 'active' | 'revoked' | 'disabled'
   apiKeyHint: string
-  rateLimitOverride: string | null
   /** MCP servers this agent may use (registry attach; tool grants still via role). */
   mcpServerIds: string[]
   createdAt: string
@@ -48,16 +48,34 @@ export type ServerGrant = {
   tools: Record<string, boolean>
 }
 
+/** Reusable grant template. Assignees derived from Agent.roleId. */
 export type Role = {
   id: string
   name: string
   description: string
   status: RoleStatus
-  /** Agent ids assigned to this role (matches mockAgents). */
-  agentIds: string[]
   grants: ServerGrant[]
   createdAt: string
   updatedAt: string
+}
+
+/** One entry in an agent's effective allow / conflict list. */
+export type PostureTool = {
+  serverId: string
+  serverName: string
+  tool: string
+  via: 'server' | 'tool'
+}
+
+/** Role grants ∩ attached MCPs, plus conflict warnings and applicable quotas. */
+export type AgentPosture = {
+  role: Role | null
+  /** Granted and attached — actually callable at RBAC. */
+  callable: PostureTool[]
+  /** Granted by role but MCP not attached — unreachable. */
+  unreachable: PostureTool[]
+  /** Attached MCP with zero tools granted by role. */
+  attachedWithoutGrants: string[]
 }
 
 export type ApprovalRequest = {

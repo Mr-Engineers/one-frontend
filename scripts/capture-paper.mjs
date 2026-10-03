@@ -12,8 +12,6 @@ const pages = [
   { name: 'agents', path: '/agents' },
   { name: 'roles', path: '/roles' },
   { name: 'mcp', path: '/mcp' },
-  { name: 'rules', path: '/rules' },
-  { name: 'rate-limits', path: '/rate-limits' },
   { name: 'specialists', path: '/specialists' },
   { name: 'simulator', path: '/simulator' },
   { name: 'settings', path: '/settings' },

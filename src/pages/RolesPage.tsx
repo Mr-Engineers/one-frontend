@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import {
   DetailHeader,
@@ -31,6 +32,7 @@ import {
 } from '@/lib/table-sort'
 import { routes } from '@/lib/routes'
 import {
+  agentsForRole,
   countGrantedTools,
   effectivePermissions,
   mockAgents,
@@ -54,7 +56,7 @@ const ROLE_FILTER_COLUMNS: FilterColumnDef<Role>[] = [
     id: 'agents',
     label: 'Agents',
     type: 'int4',
-    getValue: (r) => r.agentIds.length,
+    getValue: (r) => agentsForRole(r.id, mockAgents).length,
   },
   {
     id: 'grants',
@@ -72,6 +74,7 @@ const ROLE_FILTER_COLUMNS: FilterColumnDef<Role>[] = [
 
 export function RolesPage() {
   const [roles, setRoles] = useState(mockRoles)
+  const [agents] = useState(mockAgents)
   const [filters, setFilters] = useState<FilterRule[]>([])
   const [sort, setSort] = useState<TableSortState>(null)
   const visible = useMemo(
@@ -97,6 +100,17 @@ export function RolesPage() {
   const list = useMemo(
     () => (
       <>
+        <div className="border-border text-muted-foreground border-b px-4 py-2.5 text-xs">
+          Grant templates — assign and review effective access on an{' '}
+          <Link
+            to={routes.agents}
+            className="text-foreground underline-offset-2 hover:underline"
+          >
+            agent
+          </Link>
+          . MCP attach is per agent; this page only edits which tools a template
+          allows.
+        </div>
         <TableFilterBar
           columns={ROLE_FILTER_COLUMNS}
           rules={filters}
@@ -160,15 +174,23 @@ export function RolesPage() {
                     <StatusBadge status={role.status} />
                   </TableCell>
                   <TableCell>
-                    {role.agentIds.length === 0 ? (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    ) : (
-                      <div className="flex flex-wrap gap-1">
-                        {role.agentIds.map((id) => (
-                          <AgentBadge key={id} agentId={id} />
-                        ))}
-                      </div>
-                    )}
+                    {(() => {
+                      const assigned = agentsForRole(role.id, agents)
+                      if (assigned.length === 0) {
+                        return (
+                          <span className="text-muted-foreground text-xs">
+                            —
+                          </span>
+                        )
+                      }
+                      return (
+                        <div className="flex flex-wrap gap-1">
+                          {assigned.map((a) => (
+                            <AgentBadge key={a.id} agentId={a.id} />
+                          ))}
+                        </div>
+                      )
+                    })()}
                   </TableCell>
                   <TableCell>{countGrantedTools(role)}</TableCell>
                   <TableCell>{formatTimestamp(role.updatedAt)}</TableCell>
@@ -179,7 +201,7 @@ export function RolesPage() {
         )}
       </>
     ),
-    [filters, openRow, sort, squash.overlay?.payload.id, visible],
+    [agents, filters, openRow, sort, squash.overlay?.payload.id, visible],
   )
 
   return (
@@ -197,6 +219,7 @@ export function RolesPage() {
         return (
           <RoleDetail
             role={live}
+            agents={agents}
             onChange={updateRole}
             onArchive={() => {
               updateRole({
@@ -222,16 +245,18 @@ export function RolesPage() {
 
 function RoleDetail({
   role,
+  agents,
   onChange,
   onArchive,
   onPublish,
 }: {
   role: Role
+  agents: typeof mockAgents
   onChange: (role: Role) => void
   onArchive: () => void
   onPublish: () => void
 }) {
-  const agents = mockAgents.filter((a) => role.agentIds.includes(a.id))
+  const assigned = agentsForRole(role.id, agents)
   const effective = effectivePermissions(role)
   const grantCount = countGrantedTools(role)
 
@@ -299,7 +324,7 @@ function RoleDetail({
             },
             {
               label: 'Agents',
-              value: String(role.agentIds.length),
+              value: String(assigned.length),
             },
             {
               label: 'Tools allowed',
@@ -374,21 +399,28 @@ function RoleDetail({
       </DetailSection>
 
       <DetailSection title="Assigned agents">
-        {agents.length === 0 ? (
+        <p className="text-muted-foreground mb-2 text-xs">
+          Derived from each agent&apos;s role binding. Assign roles on the agent
+          hub.
+        </p>
+        {assigned.length === 0 ? (
           <p className="text-muted-foreground text-xs">No agents assigned.</p>
         ) : (
           <ul className="border-border divide-border divide-y border">
-            {agents.map((agent) => (
+            {assigned.map((agent) => (
               <li
                 key={agent.id}
                 className="flex items-center justify-between gap-3 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-[13px] font-medium">
+                  <Link
+                    to={routes.agentDetail(agent.id)}
+                    className="truncate text-[13px] font-medium underline-offset-2 hover:underline"
+                  >
                     {agent.name}
-                  </p>
+                  </Link>
                   <p className="text-muted-foreground text-[11px]">
-                    {agent.role}
+                    {role.name}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

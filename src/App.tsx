@@ -9,9 +9,7 @@ import { McpRegistryPage } from '@/pages/McpRegistryPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { OverviewPage } from '@/pages/OverviewPage'
 import { ProfilePage } from '@/pages/ProfilePage'
-import { RateLimitsPage } from '@/pages/RateLimitsPage'
 import { RolesPage } from '@/pages/RolesPage'
-import { RulesPage } from '@/pages/RulesPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { SpecialistsPage } from '@/pages/SpecialistsPage'
 import { SimulatorPage } from '@/pages/SimulatorPage'
@@ -32,11 +30,6 @@ export default function App() {
             path={`${routes.roles}/:roleId`}
             element={<RolesPage />}
           />
-          <Route path={routes.rules} element={<RulesPage />} />
-          <Route
-            path={`${routes.rules}/:rulePackId`}
-            element={<RulesPage />}
-          />
           <Route path={routes.agents} element={<AgentsPage />} />
           <Route
             path={`${routes.agents}/:agentId`}
@@ -45,11 +38,6 @@ export default function App() {
           <Route path={routes.mcp} element={<McpRegistryPage />} />
           <Route path={routes.audit} element={<AuditPage />} />
           <Route path={`${routes.audit}/:eventId`} element={<AuditPage />} />
-          <Route path={routes.rateLimits} element={<RateLimitsPage />} />
-          <Route
-            path={`${routes.rateLimits}/:quotaId`}
-            element={<RateLimitsPage />}
-          />
           <Route path={routes.specialists} element={<SpecialistsPage />} />
           <Route
             path={`${routes.specialists}/:specialistId`}

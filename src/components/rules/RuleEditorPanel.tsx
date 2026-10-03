@@ -4,6 +4,7 @@ import { ConditionBuilder } from '@/components/rules/ConditionBuilder'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import {
   condOpNeedsValue,
   createRuleId,
@@ -117,18 +118,15 @@ export function RuleEditorPanel({
           >
             mcp
           </Label>
-          <select
+          <Select
             id="rule-mcp"
-            className="border-border bg-background h-8 w-full rounded-sm border px-2.5 text-xs"
             value={mcpId}
-            onChange={(e) => handleMcpChange(e.target.value)}
-          >
-            {groups.map(({ server }) => (
-              <option key={server.id} value={server.id}>
-                {server.name}
-              </option>
-            ))}
-          </select>
+            onValueChange={handleMcpChange}
+            options={groups.map(({ server }) => ({
+              value: server.id,
+              label: server.name,
+            }))}
+          />
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -138,18 +136,16 @@ export function RuleEditorPanel({
           >
             tool
           </Label>
-          <select
+          <Select
             id="rule-tool"
-            className="border-border bg-background h-8 w-full rounded-sm border px-2.5 font-mono text-xs"
+            mono
             value={tool}
-            onChange={(e) => setTool(e.target.value)}
-          >
-            {tools.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+            onValueChange={setTool}
+            options={tools.map((t) => ({
+              value: t,
+              label: t,
+            }))}
+          />
         </div>
       </div>
 
@@ -167,16 +163,18 @@ export function RuleEditorPanel({
         >
           then
         </Label>
-        <select
+        <Select
           id="rule-then"
-          className="border-border bg-background h-8 w-full max-w-xs rounded-sm border px-2.5 font-mono text-xs"
+          className="max-w-xs"
+          mono
           value={then}
-          onChange={(e) => setThen(e.target.value as RuleOutcome)}
-        >
-          <option value="allow">allow</option>
-          <option value="deny">deny</option>
-          <option value="needs_ai">needs_ai</option>
-        </select>
+          onValueChange={(next) => setThen(next as RuleOutcome)}
+          options={[
+            { value: 'allow', label: 'allow' },
+            { value: 'deny', label: 'deny' },
+            { value: 'needs_ai', label: 'needs_ai' },
+          ]}
+        />
       </div>
 
       <div className="flex justify-end gap-2">

@@ -1,18 +1,14 @@
 import { AGENT_IDS } from './agents'
 import { mockAuditEvents } from './audit'
 
-/** Token-bucket / quota scope — org / agent / tool. */
-export type QuotaScope = 'org' | 'agent' | 'tool'
-
 export type QuotaWindow = '1m' | '1h' | '1d'
 
+/** Per-agent call quota (token bucket). */
 export type RateLimitQuota = {
   id: string
   name: string
-  scope: QuotaScope
-  /** Agent id, tool name, or `org`. */
-  target: string
-  targetLabel: string
+  agentId: string
+  agentName: string
   window: QuotaWindow
   cap: number
   used: number
@@ -49,27 +45,27 @@ export function remainingOf(quota: RateLimitQuota) {
   return { remaining, pctUsed, ratio: Math.min(quota.used / quota.cap, 1) }
 }
 
+export function createQuotaId(agentId: string, window: QuotaWindow) {
+  const slug = `${agentId}_${window}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '')
+  return `ql_${slug || 'quota'}_${Math.random().toString(36).slice(2, 5)}`
+}
+
+export function quotasForAgent(
+  agentId: string,
+  quotas: RateLimitQuota[] = mockRateLimitQuotas,
+): RateLimitQuota[] {
+  return quotas.filter((q) => q.agentId === agentId)
+}
+
 export const mockRateLimitQuotas: RateLimitQuota[] = [
   {
-    id: 'ql_org_day',
-    name: 'Org daily call budget',
-    scope: 'org',
-    target: 'org',
-    targetLabel: 'All agents',
-    window: '1d',
-    cap: 5000,
-    used: 1842,
-    unit: 'calls',
-    enabled: true,
-    burst: 200,
-    updatedAt: '2026-09-01T08:00:00Z',
-  },
-  {
     id: 'ql_purchasing_day',
-    name: 'Purchasing agent',
-    scope: 'agent',
-    target: AGENT_IDS.purchasing,
-    targetLabel: 'Purchasing',
+    name: 'Daily calls',
+    agentId: AGENT_IDS.purchasing,
+    agentName: 'Purchasing',
     window: '1d',
     cap: 3000,
     used: 1280,
@@ -79,39 +75,10 @@ export const mockRateLimitQuotas: RateLimitQuota[] = [
     updatedAt: '2026-09-12T10:00:00Z',
   },
   {
-    id: 'ql_support_day',
-    name: 'Support agent',
-    scope: 'agent',
-    target: AGENT_IDS.support,
-    targetLabel: 'Support',
-    window: '1d',
-    cap: 1500,
-    used: 420,
-    unit: 'calls',
-    enabled: true,
-    burst: 50,
-    updatedAt: '2026-09-12T10:00:00Z',
-  },
-  {
-    id: 'ql_checkout_hour',
-    name: 'shop.checkout',
-    scope: 'tool',
-    target: 'shop.checkout',
-    targetLabel: 'shop.checkout',
-    window: '1h',
-    cap: 80,
-    used: 74,
-    unit: 'calls',
-    enabled: true,
-    burst: 10,
-    updatedAt: '2026-09-20T14:30:00Z',
-  },
-  {
     id: 'ql_purchasing_min',
-    name: 'Purchasing burst override',
-    scope: 'agent',
-    target: AGENT_IDS.purchasing,
-    targetLabel: 'Purchasing',
+    name: 'Burst (per minute)',
+    agentId: AGENT_IDS.purchasing,
+    agentName: 'Purchasing',
     window: '1m',
     cap: 120,
     used: 48,
@@ -121,32 +88,30 @@ export const mockRateLimitQuotas: RateLimitQuota[] = [
     updatedAt: '2026-09-22T09:05:00Z',
   },
   {
-    id: 'ql_magazine_hour',
-    name: 'magazine.receive',
-    scope: 'tool',
-    target: 'magazine.receive',
-    targetLabel: 'magazine.receive',
+    id: 'ql_support_day',
+    name: 'Daily calls',
+    agentId: AGENT_IDS.support,
+    agentName: 'Support',
+    window: '1d',
+    cap: 1500,
+    used: 420,
+    unit: 'calls',
+    enabled: true,
+    burst: 50,
+    updatedAt: '2026-09-12T10:00:00Z',
+  },
+  {
+    id: 'ql_support_hour',
+    name: 'Hourly calls',
+    agentId: AGENT_IDS.support,
+    agentName: 'Support',
     window: '1h',
     cap: 200,
-    used: 33,
+    used: 61,
     unit: 'calls',
     enabled: true,
     burst: 30,
     updatedAt: '2026-09-28T11:00:00Z',
-  },
-  {
-    id: 'ql_tickets_min',
-    name: 'tickets.* tools',
-    scope: 'tool',
-    target: 'tickets.*',
-    targetLabel: 'tickets.*',
-    window: '1m',
-    cap: 90,
-    used: 12,
-    unit: 'calls',
-    enabled: false,
-    burst: 15,
-    updatedAt: '2026-10-01T16:20:00Z',
   },
 ]
 
@@ -160,9 +125,14 @@ export const mockRateLimitHits: RateLimitHit[] = (() => {
       agentId: e.agentId,
       agentName: e.agentName,
       tool: e.tool,
-      quotaId: e.tool === 'shop.checkout' ? 'ql_checkout_hour' : 'ql_purchasing_min',
+      quotaId:
+        e.agentId === AGENT_IDS.support
+          ? 'ql_support_hour'
+          : 'ql_purchasing_min',
       quotaName:
-        e.tool === 'shop.checkout' ? 'shop.checkout' : 'Purchasing burst override',
+        e.agentId === AGENT_IDS.support
+          ? 'Hourly calls'
+          : 'Burst (per minute)',
       retryAfterSeconds: e.tool === 'shop.checkout' ? 42 : 18,
       auditEventId: e.id,
     }))
@@ -175,7 +145,7 @@ export const mockRateLimitHits: RateLimitHit[] = (() => {
       agentName: 'Purchasing',
       tool: 'shop.search',
       quotaId: 'ql_purchasing_min',
-      quotaName: 'Purchasing burst override',
+      quotaName: 'Burst (per minute)',
       retryAfterSeconds: 22,
       auditEventId: null,
     },
@@ -185,8 +155,8 @@ export const mockRateLimitHits: RateLimitHit[] = (() => {
       agentId: AGENT_IDS.purchasing,
       agentName: 'Purchasing',
       tool: 'shop.checkout',
-      quotaId: 'ql_checkout_hour',
-      quotaName: 'shop.checkout',
+      quotaId: 'ql_purchasing_min',
+      quotaName: 'Burst (per minute)',
       retryAfterSeconds: 55,
       auditEventId: null,
     },
@@ -197,7 +167,7 @@ export const mockRateLimitHits: RateLimitHit[] = (() => {
       agentName: 'Purchasing',
       tool: 'magazine.receive',
       quotaId: 'ql_purchasing_min',
-      quotaName: 'Purchasing burst override',
+      quotaName: 'Burst (per minute)',
       retryAfterSeconds: 31,
       auditEventId: null,
     },
@@ -207,8 +177,8 @@ export const mockRateLimitHits: RateLimitHit[] = (() => {
       agentId: AGENT_IDS.support,
       agentName: 'Support',
       tool: 'tickets.comment',
-      quotaId: 'ql_org_day',
-      quotaName: 'Org daily call budget',
+      quotaId: 'ql_support_hour',
+      quotaName: 'Hourly calls',
       retryAfterSeconds: 8,
       auditEventId: null,
     },
@@ -218,8 +188,8 @@ export const mockRateLimitHits: RateLimitHit[] = (() => {
       agentId: AGENT_IDS.purchasing,
       agentName: 'Purchasing',
       tool: 'shop.checkout',
-      quotaId: 'ql_checkout_hour',
-      quotaName: 'shop.checkout',
+      quotaId: 'ql_purchasing_day',
+      quotaName: 'Daily calls',
       retryAfterSeconds: 60,
       auditEventId: null,
     },

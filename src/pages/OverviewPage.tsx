@@ -286,12 +286,12 @@ export function OverviewPage() {
             title="Budget remaining"
             description={
               <>
-                Quotas before rate limits kick in ·{' '}
+                Per-agent caps ·{' '}
                 <Link
-                  to={routes.rateLimits}
+                  to={routes.agents}
                   className="text-foreground underline-offset-2 hover:underline"
                 >
-                  Manage
+                  Manage on agents
                 </Link>
               </>
             }

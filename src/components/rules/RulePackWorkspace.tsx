@@ -9,12 +9,10 @@ import {
 import {
   CollapsibleDetails,
   JsonBlock,
-  formatTimestamp,
 } from '@/components/list/DetailMeta'
 import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { RuleEditorPanel } from '@/components/rules/RuleEditorPanel'
 import { RuleOutcomeBadge } from '@/components/rules/RuleOutcomeBadge'
-import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -33,10 +31,8 @@ import {
 import { cn } from '@/lib/utils'
 import {
   activeVersionOf,
-  countRulesForMcp,
   evaluateRules,
   mcpServerForTool,
-  mcpsForAgent,
   mockDryRunSamples,
   type DryRunSample,
   type PolicyRule,
@@ -61,37 +57,31 @@ export function RulePackWorkspace({
   onUpdate,
   onClose,
   focusEditor = false,
+  embedded = false,
 }: {
   pack: RulePack
   onUpdate: (next: RulePack) => void
   onClose: () => void
   /** Open directly on the rule creator (e.g. after New pack). */
   focusEditor?: boolean
+  /** Fill parent (agent Rules tab) instead of covering the whole surface. */
+  embedded?: boolean
 }) {
   const version = activeVersionOf(pack)
   const rules = version?.rules ?? []
-  const agentMcps = useMemo(() => mcpsForAgent(pack.agentId), [pack.agentId])
 
-  const [mcpFilter, setMcpFilter] = useState<string | 'all'>('all')
   const [sort, setSort] = useState<TableSortState>(null)
   const [editing, setEditing] = useState<Editing>(
     focusEditor || rules.length === 0 ? 'new' : null,
   )
   const [dryRunId, setDryRunId] = useState<string | null>(null)
 
-  const filteredRules = useMemo(() => {
-    const scoped =
-      mcpFilter === 'all'
-        ? rules
-        : rules.filter((r) => mcpServerForTool(r.tool)?.id === mcpFilter)
-    return applyTableSort(scoped, RULE_SORT_COLUMNS, sort)
-  }, [mcpFilter, rules, sort])
+  const sortedRules = useMemo(
+    () => applyTableSort(rules, RULE_SORT_COLUMNS, sort),
+    [rules, sort],
+  )
 
-  const samples = useMemo(() => {
-    const all = mockDryRunSamples[pack.id] ?? []
-    if (mcpFilter === 'all') return all
-    return all.filter((s) => mcpServerForTool(s.tool)?.id === mcpFilter)
-  }, [mcpFilter, pack.id])
+  const samples = mockDryRunSamples[pack.id] ?? []
 
   const selectedSample =
     samples.find((s) => s.id === dryRunId) ?? samples[0] ?? null
@@ -114,10 +104,6 @@ export function RulePackWorkspace({
     )
     onUpdate({ ...pack, versions: nextVersions, updatedAt: now })
     setEditing(null)
-    const ruleMcp = mcpServerForTool(rule.tool)?.id
-    if (ruleMcp && mcpFilter !== 'all' && mcpFilter !== ruleMcp) {
-      setMcpFilter(ruleMcp)
-    }
   }
 
   function publishDraft() {
@@ -143,25 +129,21 @@ export function RulePackWorkspace({
     })
   }
 
-  function setActiveVersion(ver: string) {
-    onUpdate({
-      ...pack,
-      activeVersion: ver,
-      updatedAt: new Date().toISOString(),
-    })
-  }
-
   function toggleRule(rule: PolicyRule) {
     setEditing((prev) =>
       prev !== null && prev !== 'new' && prev.id === rule.id ? null : rule,
     )
   }
 
-  const showEmpty =
-    filteredRules.length === 0 && editing !== 'new'
+  const showEmpty = sortedRules.length === 0 && editing !== 'new'
 
   return (
-    <div className="bg-card absolute inset-0 z-20 flex flex-col overflow-hidden">
+    <div
+      className={cn(
+        'bg-card flex flex-col overflow-hidden',
+        embedded ? 'min-h-0 flex-1' : 'absolute inset-0 z-20',
+      )}
+    >
       <header className="border-border flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4">
         <div className="flex min-w-0 items-center gap-2">
           <Button
@@ -173,13 +155,7 @@ export function RulePackWorkspace({
           >
             <RiArrowLeftLine className="size-4" />
           </Button>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{pack.name}</p>
-            <p className="text-muted-foreground truncate font-mono text-[11px]">
-              {pack.activeVersion}
-              {version ? ` · ${version.status}` : ''}
-            </p>
-          </div>
+          <p className="truncate text-sm font-medium">{pack.name}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {version?.status === 'draft' ? (
@@ -202,64 +178,11 @@ export function RulePackWorkspace({
         </div>
       </header>
 
-      <div className="border-border flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-2.5 text-[12px]">
-        <span className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Agent</span>
-          <AgentBadge agentId={pack.agentId} />
-        </span>
-        {version ? (
-          <span className="flex items-center gap-1.5">
-            <span className="text-muted-foreground">Status</span>
-            <StatusBadge status={version.status} />
-          </span>
-        ) : null}
-        <label className="flex items-center gap-1.5">
-          <span className="text-muted-foreground">Version</span>
-          <select
-            className="border-border bg-background h-7 rounded-sm border px-2 text-[12px]"
-            value={pack.activeVersion}
-            onChange={(e) => setActiveVersion(e.target.value)}
-          >
-            {pack.versions.map((v) => (
-              <option key={v.version} value={v.version}>
-                {v.version} ({v.status})
-              </option>
-            ))}
-          </select>
-        </label>
-        <span className="text-muted-foreground tabular-nums">
-          {rules.length} rules
-        </span>
-        <span className="text-muted-foreground ml-auto">
-          Updated {formatTimestamp(pack.updatedAt)}
-        </span>
-      </div>
-
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        <div className="border-border flex shrink-0 flex-wrap items-center gap-1.5 border-b px-4 py-2">
-          <McpChip
-            active={mcpFilter === 'all'}
-            onClick={() => setMcpFilter('all')}
-            label="All MCPs"
-            count={rules.length}
-          />
-          {agentMcps.map((server) => (
-            <McpChip
-              key={server.id}
-              active={mcpFilter === server.id}
-              onClick={() => setMcpFilter(server.id)}
-              label={server.name}
-              count={countRulesForMcp(rules, server.id)}
-            />
-          ))}
-        </div>
-
         <section className="flex flex-col gap-2 px-4 py-3">
           {showEmpty ? (
             <p className="text-muted-foreground text-xs">
-              {mcpFilter === 'all'
-                ? 'No rules yet — add a condition with New rule.'
-                : 'No rules for this MCP. Switch filter or add a rule scoped to its tools.'}
+              No rules yet — add a condition with New rule.
             </p>
           ) : (
             <div className="border-border overflow-hidden border">
@@ -300,17 +223,11 @@ export function RulePackWorkspace({
                         <TableCell colSpan={5} className="py-2">
                           <p className="text-muted-foreground mb-2 font-mono text-[11px] tracking-wide uppercase">
                             New rule
-                            {mcpFilter !== 'all'
-                              ? ` · ${agentMcps.find((s) => s.id === mcpFilter)?.name ?? ''}`
-                              : ''}
                           </p>
                           <RuleEditorPanel
                             key="new"
                             agentId={pack.agentId}
                             initial={null}
-                            defaultMcpId={
-                              mcpFilter === 'all' ? null : mcpFilter
-                            }
                             onSave={saveRule}
                             onCancel={() => setEditing(null)}
                           />
@@ -319,7 +236,7 @@ export function RulePackWorkspace({
                     </Fragment>
                   ) : null}
 
-                  {filteredRules.map((rule) => {
+                  {sortedRules.map((rule) => {
                     const open =
                       editing !== null &&
                       editing !== 'new' &&
@@ -413,41 +330,6 @@ export function RulePackWorkspace({
         ) : null}
       </div>
     </div>
-  )
-}
-
-function McpChip({
-  active,
-  onClick,
-  label,
-  count,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-  count: number
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'inline-flex h-7 items-center gap-1.5 rounded-sm px-2.5 font-mono text-[11px] transition-colors',
-        active
-          ? 'bg-secondary text-foreground'
-          : 'text-muted-foreground hover:text-foreground',
-      )}
-    >
-      <span className="truncate">{label}</span>
-      <span
-        className={cn(
-          'tabular-nums',
-          active ? 'text-foreground/70' : 'text-muted-foreground/80',
-        )}
-      >
-        {count}
-      </span>
-    </button>
   )
 }
 

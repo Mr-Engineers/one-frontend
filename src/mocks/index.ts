@@ -6,7 +6,13 @@
  * is ready.
  */
 
-export { AGENT_IDS, findAgent, mockAgents } from './agents'
+export {
+  AGENT_IDS,
+  agentsForRole,
+  agentsUsingMcp,
+  findAgent,
+  mockAgents,
+} from './agents'
 export { mockApprovals } from './approvals'
 export { mockAuditEvents } from './audit'
 export {
@@ -23,15 +29,17 @@ export type {
   ProposedHostedTool,
   ProposedToolRisk,
 } from './mcp'
-export { getOverviewMetrics } from './overview'
+export { getAgentOverviewMetrics, getOverviewMetrics } from './overview'
+export type { AgentOverviewMetrics } from './overview'
 export {
+  createQuotaId,
   mockRateLimitHits,
   mockRateLimitQuotas,
   quotaPressure,
+  quotasForAgent,
   remainingOf,
 } from './rate-limits'
 export type {
-  QuotaScope,
   QuotaWindow,
   RateLimitHit,
   RateLimitQuota,
@@ -49,8 +57,11 @@ export type {
   WorkspaceSettings,
 } from './settings'
 export {
+  ROLE_IDS,
   countGrantedTools,
+  effectiveAgentPosture,
   effectivePermissions,
+  findRole,
   mockRoles,
 } from './roles'
 export {
@@ -89,6 +100,7 @@ export type {
 export type { DryRunResult } from './rules'
 export type {
   Agent,
+  AgentPosture,
   ApprovalRequest,
   AuditEvent,
   CondField,
@@ -101,6 +113,7 @@ export type {
   McpKind,
   McpServer,
   PolicyRule,
+  PostureTool,
   Role,
   RoleStatus,
   RuleFieldDef,

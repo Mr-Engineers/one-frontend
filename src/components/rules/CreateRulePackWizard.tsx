@@ -4,6 +4,7 @@ import { RiArrowLeftLine } from '@remixicon/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import { AGENT_IDS, createPackId, mockAgents, type RulePack } from '@/mocks'
 
 export function CreateRulePackWizard({
@@ -11,23 +12,28 @@ export function CreateRulePackWizard({
   existingNames,
   onClose,
   onCreated,
+  lockedAgentId,
 }: {
   open: boolean
   existingNames: string[]
   onClose: () => void
   onCreated: (pack: RulePack) => void
+  /** When set, agent is fixed (e.g. creating from an agent hub). */
+  lockedAgentId?: string
 }) {
   const [name, setName] = useState('')
-  const [agentId, setAgentId] = useState<string>(AGENT_IDS.purchasing)
+  const [agentId, setAgentId] = useState<string>(
+    lockedAgentId ?? AGENT_IDS.purchasing,
+  )
   const [description, setDescription] = useState('')
 
   useEffect(() => {
     if (!open) {
       setName('')
-      setAgentId(AGENT_IDS.purchasing)
+      setAgentId(lockedAgentId ?? AGENT_IDS.purchasing)
       setDescription('')
     }
-  }, [open])
+  }, [lockedAgentId, open])
 
   if (!open) return null
 
@@ -35,13 +41,15 @@ export function CreateRulePackWizard({
   const duplicate = existingNames.includes(slug)
   const canCreate = slug.length > 0 && !duplicate
 
+  const resolvedAgentId = lockedAgentId ?? agentId
+
   function create() {
     if (!canCreate) return
     const now = new Date().toISOString()
     onCreated({
       id: createPackId(slug),
       name: slug,
-      agentId,
+      agentId: resolvedAgentId,
       description:
         description.trim() ||
         'Draft pack — add rules and publish when ready.',
@@ -119,18 +127,22 @@ export function CreateRulePackWizard({
           >
             agent
           </Label>
-          <select
-            id="new-pack-agent"
-            className="border-border bg-background h-8 w-full rounded-sm border px-2.5 font-mono text-xs"
-            value={agentId}
-            onChange={(e) => setAgentId(e.target.value)}
-          >
-            {mockAgents.map((agent) => (
-              <option key={agent.id} value={agent.id}>
-                {agent.name}
-              </option>
-            ))}
-          </select>
+          {lockedAgentId ? (
+            <p className="text-[13px]">
+              {mockAgents.find((a) => a.id === lockedAgentId)?.name ??
+                lockedAgentId}
+            </p>
+          ) : (
+            <Select
+              id="new-pack-agent"
+              value={agentId}
+              onValueChange={setAgentId}
+              options={mockAgents.map((agent) => ({
+                value: agent.id,
+                label: agent.name,
+              }))}
+            />
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -153,7 +165,7 @@ export function CreateRulePackWizard({
             Cancel
           </Button>
           <Button type="submit" disabled={!canCreate}>
-            Create & open editor
+            Create pack
           </Button>
         </div>
       </form>

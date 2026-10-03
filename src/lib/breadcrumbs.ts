@@ -6,10 +6,24 @@ export type BreadcrumbCrumb = {
   href?: string
 }
 
-const EXTRA_PAGES: { path: string; label: string }[] = [
-  { path: routes.settings, label: 'Settings' },
-  { path: routes.profile, label: 'Profile' },
-]
+/** Pages kept off the side nav but still reachable via agent deep-links. */
+const EXTRA_PAGES: { path: string; label: string; parent?: BreadcrumbCrumb }[] =
+  [
+    {
+      path: routes.agents,
+      label: 'Agents',
+      // listed in nav — handled below; keep for detail parent clarity if needed
+    },
+    { path: routes.roles, label: 'Role template', parent: { label: 'Agents', href: routes.agents } },
+    {
+      path: routes.specialists,
+      label: 'Specialist',
+      parent: { label: 'Agents', href: routes.agents },
+    },
+    { path: routes.simulator, label: 'Simulator' },
+    { path: routes.settings, label: 'Settings' },
+    { path: routes.profile, label: 'Profile' },
+  ]
 
 /**
  * Presentational breadcrumb trail from the current pathname
@@ -49,12 +63,23 @@ export function breadcrumbsForPath(pathname: string): BreadcrumbCrumb[] {
   }
 
   for (const page of EXTRA_PAGES) {
-    if (pathname === page.path || pathname.startsWith(`${page.path}/`)) {
-      return [
-        { label: 'Overview', href: routes.overview },
-        { label: page.label },
-      ]
+    if (page.path === routes.agents) continue
+    const onList = pathname === page.path
+    const onDetail = pathname.startsWith(`${page.path}/`)
+    if (!onList && !onDetail) continue
+
+    const crumbs: BreadcrumbCrumb[] = [
+      { label: 'Overview', href: routes.overview },
+    ]
+    if (page.parent) crumbs.push(page.parent)
+
+    if (onDetail) {
+      crumbs.push({ label: page.label, href: page.path })
+      crumbs.push({ label: 'Details' })
+    } else {
+      crumbs.push({ label: page.label })
     }
+    return crumbs
   }
 
   return [

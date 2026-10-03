@@ -2,12 +2,38 @@
 
 Primary UI is the **Modus operator dashboard**. Shop + magazine live in separate repos (agent/MCP backends), not in this frontend.
 
+## Information architecture
+
+**Side nav stays small.** Configure posture on the agent; catalogs are deep-links only.
+
+| Layer | In nav? | Screens | Job |
+| --- | --- | --- | --- |
+| **Monitor** | Yes | Overview, Approvals, Audit | Runtime queues + usage |
+| **Agent hub** | Yes | Agents (Overview · Access · Rules · Limits · Keys) | Primary control surface |
+| **MCP** | Yes | Org-wide MCP catalog | Connect once; agents add from this list |
+| **Deep-link catalogs** | No | Roles, Specialists | Opened from Agent Access / Rules |
+
+Runtime path ownership:
+
+```
+API key → Agent
+  → MCP attached?     (reachability — per agent)
+  → Role grants tool? (RBAC — template bound to agent)
+  → Rate limit OK?    (per-agent caps)
+  → Rule pack
+  → Specialist / human
+```
+
+Effective posture on an agent = **role grants ∩ attached MCP tools**, plus applicable quotas.
+
+Roles are **templates**, not a second place to wire MCP. Attach MCP on the agent; edit grants on the template when needed via “Edit grants” from Access.
+
 ## App shell (shared)
 
 | Element | Why |
 | --- | --- |
 | Login / session gate | Operator auth |
-| Side nav + page titles | Module navigation |
+| Side nav | Overview · Approvals · Audit · Agents · MCP (+ Settings in footer) |
 | Global pending-approvals badge | Escalation urgency |
 | Toasts / banners | Allow/deny/rate-limit feedback |
 | Empty / error / loading states | First-run + outages |
@@ -23,37 +49,35 @@ Calls chart, top agents/tools, error rate, **per-agent** clear/caution split (de
 
 Pending table (tool, agent, specialist, probs, age/TTL), detail drawer (args redacted, matched rules, model choice), actions **Allow / Deny / Allow-with-TTL**, live refresh.
 
-### 3. Roles & grants
+### 3. Agents (hub)
 
-Role list + create/edit, tool/server grant matrix (checkboxes or tree), agent→role assignment, **effective permissions** preview.
+Agent list (demo: **Purchasing** + **Support**). Detail tabs:
 
-### 4. Rule packs
+1. **Overview** — glance metrics + jumps to Access / Rules / Limits
+2. **Access** — MCP list (Add from org catalog) · Grants · Result
+3. **Rules** — this agent’s packs (cards → workspace editor) + specialist
+4. **Limits** — per-agent call caps only (window · cap · burst)
+5. **Keys** — API key create/reveal/revoke
 
-Pack list/versions, rule editor (tool/args/risk → allow\|deny\|needs_ai), **dry-run** panel on sample call, promote/publish.
+### 4. Role templates (deep-link)
 
-### 5. Agents & auth
+Deny-by-default grant matrix. Assignees derived from `Agent.roleId`. Opened from Agent → Access → Edit grants.
 
-Agent list (demo: **Purchasing** + **Support** — each use case is an agent instance), API key create/reveal/revoke, rate-limit overrides.
+### 5. MCP (org catalog)
 
-### 6. MCP registry
+Org-wide server list. Agents pick from it via Access → Add; “New MCP…” creates a catalog entry and adds it to the agent.
 
-Remote vs hosted tabs, connect wizard (URL + secrets), health + last sync, tool catalog browser, reconnect / rotate secret.
+### 6. Specialists
+
+Deep-linked from Agent → Rules. Runs when a pack returns `needs_ai`.
 
 ### 7. Audit explorer
 
 Filterable event table, event detail (decision chain: RBAC → rules → specialist → human), redacted args JSON, export.
 
-### 8. Rate limits / budgets
+### 8. Agent flow simulator
 
-Quota form (per agent/tool/org), remaining vs cap, 429 recent hits list.
-
-### 9. Specialists (ops, light)
-
-Which model is live + version, latency/error health, optional threshold display (edit can stay config/API for MVP).
-
-### 10. Agent flow simulator
-
-Agent + role picker, scenario list (happy / deny / caution / rate-limit), step timeline, “open in audit” link.
+Deep-link / stub: agent + role picker, scenarios, timeline, open in audit.
 
 ## Out of scope (separate repos)
 
@@ -61,12 +85,6 @@ Shop and office magazine UIs are hosted elsewhere. Support can stay agent-only f
 
 ## MVP cut (hackathon)
 
-Ship first: **shell → approval queue → audit → usage → roles → MCP registry → simulator**.
+Ship first: **shell → agent hub → approval queue → audit → usage**.
 
-Defer polish: full rule-pack editor UX, specialist ops page, rate-limit UI (seed via config).
-
-## Related Linear work
-
-Already covered by Design/UI issues: ENG-5–12 (shell/brand), ENG-14–20 (modules).
-
-Gaps vs this plan (add tasks if needed): **Agents & API keys**, **rate limits**.
+Catalogs are secondary editors reached from the agent, not peer nav modules.
