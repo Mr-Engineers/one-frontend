@@ -4,7 +4,8 @@
 @import "@fontsource-variable/geist";
 @import "@fontsource-variable/geist-mono";
 
-/* Digits / numeric punctuation render in Geist Mono within the sans stack */
+/* Digits / numeric punctuation render in Geist Mono within the sans stack.
+   Period (U+002E) intentionally omitted — mono metrics misalign sentence/email dots. */
 @font-face {
     font-family: 'Geist Digits';
     font-style: normal;
@@ -12,7 +13,7 @@
     font-weight: 100 900;
     src: url('../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2')
         format('woff2-variations');
-    unicode-range: U+0030-0039, U+002B, U+002C, U+002D, U+002E, U+003A, U+0025;
+    unicode-range: U+0030-0039, U+002B, U+002C, U+002D, U+003A, U+0025;
 }
 
 @custom-variant dark (&:is(.dark *));
@@ -73,8 +74,8 @@
     --card-foreground: oklch(0.2 0 0);
     --popover: oklch(1 0 0);
     --popover-foreground: oklch(0.2 0 0);
-    --primary: oklch(0.62 0.15 155);
-    --primary-foreground: oklch(0.16 0.02 155);
+    --primary: #ff7631;
+    --primary-foreground: #1a0c06;
     --secondary: oklch(0.96 0 0);
     --secondary-foreground: oklch(0.25 0 0);
     --muted: oklch(0.96 0 0);
@@ -84,7 +85,7 @@
     --destructive: oklch(0.55 0.22 27);
     --border: oklch(0.88 0 0);
     --input: oklch(0.92 0 0);
-    --ring: oklch(0.62 0.15 155);
+    --ring: #ff7631;
     --chart-1: oklch(0.62 0.15 155);
     --chart-2: oklch(0.65 0.12 220);
     --chart-3: oklch(0.7 0.14 85);
@@ -93,12 +94,12 @@
     --radius: 3px;
     --sidebar: oklch(0.97 0 0);
     --sidebar-foreground: oklch(0.2 0 0);
-    --sidebar-primary: oklch(0.62 0.15 155);
-    --sidebar-primary-foreground: oklch(0.16 0.02 155);
+    --sidebar-primary: #ff7631;
+    --sidebar-primary-foreground: #1a0c06;
     --sidebar-accent: oklch(0.94 0 0);
     --sidebar-accent-foreground: oklch(0.25 0 0);
     --sidebar-border: oklch(0.88 0 0);
-    --sidebar-ring: oklch(0.62 0.15 155);
+    --sidebar-ring: #ff7631;
 
     --grey-50: #f1f1f1;
     --grey-200: #d7dada;
@@ -123,15 +124,15 @@
 }
 
 .dark {
-    /* Supabase-like technical canvas: flat panes, hairline borders, green accent */
+    /* Technical canvas: flat panes, hairline borders; brand orange for CTAs only */
     --background: #171717;
     --foreground: #ededed;
     --card: #1c1c1c;
     --card-foreground: #ededed;
     --popover: #1c1c1c;
     --popover-foreground: #ededed;
-    --primary: #3ecf8e;
-    --primary-foreground: #0b1f16;
+    --primary: #ff7631;
+    --primary-foreground: #1a0c06;
     --secondary: #242424;
     --secondary-foreground: #ededed;
     --muted: #242424;
@@ -141,7 +142,7 @@
     --destructive: #f07178;
     --border: #2e2e2e;
     --input: #242424;
-    --ring: #3ecf8e;
+    --ring: #ff7631;
     --chart-1: #3ecf8e;
     --chart-2: #3b82f6;
     --chart-3: #eab308;
@@ -149,12 +150,12 @@
     --chart-5: #a78bfa;
     --sidebar: #171717;
     --sidebar-foreground: #ededed;
-    --sidebar-primary: #3ecf8e;
-    --sidebar-primary-foreground: #0b1f16;
+    --sidebar-primary: #ff7631;
+    --sidebar-primary-foreground: #1a0c06;
     --sidebar-accent: #242424;
     --sidebar-accent-foreground: #ededed;
     --sidebar-border: #2e2e2e;
-    --sidebar-ring: #3ecf8e;
+    --sidebar-ring: #ff7631;
 
     --grey-50: #121212;
     --grey-200: #2e2e2e;

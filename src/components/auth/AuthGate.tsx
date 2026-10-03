@@ -8,8 +8,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <main className="flex min-h-svh items-center justify-center bg-background p-6">
-        <p className="text-sm text-muted-foreground">Loading session…</p>
+      <main className="bg-background flex min-h-svh items-center justify-center p-6">
+        <p className="text-muted-foreground text-sm">Loading session…</p>
       </main>
     )
   }
