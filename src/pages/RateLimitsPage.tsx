@@ -39,10 +39,22 @@ const DETAIL_TITLE_ID = 'quota-detail-title'
 
 const WINDOW_OPTIONS: QuotaWindow[] = ['1m', '1h', '1d']
 
+const WINDOW_LABELS: Record<QuotaWindow, string> = {
+  '1m': 'Every minute',
+  '1h': 'Every hour',
+  '1d': 'Every day',
+}
+
 const SCOPE_THEME: Record<QuotaScope, BadgeTheme> = {
   org: BadgeTheme.Gray,
   agent: BadgeTheme.Blue,
   tool: BadgeTheme.Purple,
+}
+
+const SCOPE_LABELS: Record<QuotaScope, string> = {
+  org: 'Organization',
+  agent: 'Agent',
+  tool: 'Tool',
 }
 
 const PRESSURE_THEME: Record<
@@ -57,7 +69,7 @@ const PRESSURE_THEME: Record<
 function ScopeBadge({ scope }: { scope: QuotaScope }) {
   return (
     <ThemedBadge
-      text={scope}
+      text={SCOPE_LABELS[scope]}
       theme={SCOPE_THEME[scope]}
       size="table"
     />
@@ -94,7 +106,7 @@ function UsageBar({ quota }: { quota: RateLimitQuota }) {
           style={{ width: `${pctUsed}%` }}
         />
       </div>
-      <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
+      <span className="text-muted-foreground text-[10px] tabular-nums">
         {remaining.toLocaleString()} left · {quota.used.toLocaleString()}/
         {quota.cap.toLocaleString()}
       </span>
@@ -137,26 +149,22 @@ export function RateLimitsPage() {
       <>
         <div className="border-border grid grid-cols-2 border-b xl:grid-cols-4">
           <MetricCell
-            label="429_today"
-            type="int4"
+            label="Blocked today"
             value={String(metrics.hitsToday)}
-            hint="Gateway Retry-After responses"
+            hint="Calls stopped for exceeding a limit"
           />
           <MetricCell
-            label="exhausted"
-            type="int4"
+            label="Exhausted"
             value={String(metrics.exhausted)}
-            hint={`${metrics.tight} tight (≥80%)`}
+            hint={`${metrics.tight} nearly full (≥80%)`}
           />
           <MetricCell
-            label="org_remaining"
-            type="int4"
+            label="Org remaining"
             value={metrics.orgRemaining.toLocaleString()}
-            hint="calls left on org daily budget"
+            hint="Calls left on the daily org budget"
           />
           <MetricCell
-            label="agent_overrides"
-            type="int4"
+            label="Agent overrides"
             value={String(metrics.overrides)}
             hint="Per-agent caps active"
             className="border-r-0 xl:border-r-0"
@@ -166,12 +174,12 @@ export function RateLimitsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead type="text">name</TableHead>
-              <TableHead type="enum">scope</TableHead>
-              <TableHead type="text">target</TableHead>
-              <TableHead type="enum">window</TableHead>
-              <TableHead type="text">usage</TableHead>
-              <TableHead type="enum">pressure</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Applies to</TableHead>
+              <TableHead>Target</TableHead>
+              <TableHead>Window</TableHead>
+              <TableHead>Usage</TableHead>
+              <TableHead>Status</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -190,10 +198,8 @@ export function RateLimitsPage() {
                 <TableCell>
                   <ScopeBadge scope={quota.scope} />
                 </TableCell>
-                <TableCell className="font-mono text-[13px]">
-                  {quota.targetLabel}
-                </TableCell>
-                <TableCell className="font-mono">{quota.window}</TableCell>
+                <TableCell className="text-[13px]">{quota.targetLabel}</TableCell>
+                <TableCell>{WINDOW_LABELS[quota.window]}</TableCell>
                 <TableCell>
                   <UsageBar quota={quota} />
                 </TableCell>
@@ -248,13 +254,11 @@ export function RateLimitsPage() {
 
 function MetricCell({
   label,
-  type,
   value,
   hint,
   className,
 }: {
   label: string
-  type: string
   value: string
   hint: string
   className?: string
@@ -266,11 +270,8 @@ function MetricCell({
         className,
       )}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-muted-foreground text-xs">{label}</span>
-        <span className="text-muted-foreground font-mono text-[10px]">{type}</span>
-      </div>
-      <p className="font-mono text-2xl tracking-tight tabular-nums">{value}</p>
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <p className="text-2xl tracking-tight tabular-nums">{value}</p>
       <p className="text-muted-foreground text-xs">{hint}</p>
     </div>
   )
@@ -289,9 +290,9 @@ function RecentHits({
     <section className="border-border border-t">
       <div className="border-border flex items-start justify-between gap-3 border-b px-4 py-3">
         <div className="min-w-0">
-          <h2 className="text-sm font-medium">Recent 429 hits</h2>
+          <h2 className="text-sm font-medium">Recently blocked</h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
-            Exceeded budget → rate_limited audit · Retry-After honored by agents
+            Calls that hit a limit and were asked to wait
           </p>
         </div>
         <Link
@@ -303,19 +304,19 @@ function RecentHits({
       </div>
 
       {hits.length === 0 ? (
-        <p className="text-muted-foreground px-4 py-6 font-mono text-xs">
-          No rate-limit hits yet.
+        <p className="text-muted-foreground px-4 py-6 text-xs">
+          No rate-limit blocks yet.
         </p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead type="timestamptz">time</TableHead>
-              <TableHead type="text">agent</TableHead>
-              <TableHead type="text">tool</TableHead>
-              <TableHead type="text">quota</TableHead>
-              <TableHead type="int4">retry_after</TableHead>
-              <TableHead type="enum">decision</TableHead>
+              <TableHead>Time</TableHead>
+              <TableHead>Agent</TableHead>
+              <TableHead>Tool</TableHead>
+              <TableHead>Limit</TableHead>
+              <TableHead>Try again in</TableHead>
+              <TableHead>Decision</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -325,25 +326,21 @@ function RecentHits({
                 <TableRow key={hit.id}>
                   <TableCell>{formatTimestamp(hit.timestamp)}</TableCell>
                   <TableCell className="font-medium">{hit.agentName}</TableCell>
-                  <TableCell className="font-mono text-[13px]">
-                    {hit.tool}
-                  </TableCell>
+                  <TableCell className="text-[13px]">{hit.tool}</TableCell>
                   <TableCell>
                     {quota ? (
                       <button
                         type="button"
-                        className="text-foreground font-mono text-[13px] underline-offset-2 hover:underline"
+                        className="text-foreground text-[13px] underline-offset-2 hover:underline"
                         onClick={() => onOpenQuota(quota)}
                       >
                         {hit.quotaName}
                       </button>
                     ) : (
-                      <span className="font-mono text-[13px]">
-                        {hit.quotaName}
-                      </span>
+                      <span className="text-[13px]">{hit.quotaName}</span>
                     )}
                   </TableCell>
-                  <TableCell className="font-mono tabular-nums">
+                  <TableCell className="tabular-nums">
                     {hit.retryAfterSeconds}s
                   </TableCell>
                   <TableCell>
@@ -399,7 +396,6 @@ function QuotaDetail({
       burst: Math.floor(Number(burstDraft)),
       window: windowDraft,
       enabled: enabledDraft,
-      // Clamp used so mock remaining stays coherent after raising/lowering cap
       used: Math.min(quota.used, Math.floor(Number(capDraft))),
       updatedAt: new Date().toISOString(),
     })
@@ -417,41 +413,37 @@ function QuotaDetail({
       <DetailHeader
         titleId={DETAIL_TITLE_ID}
         title={quota.name}
-        subtitle={`${quota.scope} · ${quota.target}`}
+        subtitle={`${SCOPE_LABELS[quota.scope]} · ${quota.targetLabel}`}
         actions={
           <Button
             type="button"
             disabled={!dirty || !capValid || !burstValid}
             onClick={save}
           >
-            Save quota
+            Save limit
           </Button>
         }
       />
 
-      <DetailSection title="Remaining vs cap">
+      <DetailSection title="Usage">
         <div className="flex flex-col gap-2">
           <UsageBar quota={quota} />
           <MetaGrid
             items={[
               {
-                label: 'pressure',
-                type: 'enum',
+                label: 'Status',
                 value: <PressureBadge quota={quota} />,
               },
               {
-                label: 'remaining',
-                type: 'int4',
+                label: 'Remaining',
                 value: remaining.toLocaleString(),
               },
               {
-                label: 'used_pct',
-                type: 'float',
+                label: 'Used',
                 value: `${pctUsed}%`,
               },
               {
-                label: 'unit',
-                type: 'text',
+                label: 'Unit',
                 value: quota.unit,
               },
             ]}
@@ -459,23 +451,21 @@ function QuotaDetail({
         </div>
       </DetailSection>
 
-      <DetailSection title="Quota form">
+      <DetailSection title="Edit limit">
         <p className="text-muted-foreground mb-3 text-xs">
-          Token-bucket style: steady{' '}
-          <span className="font-mono">cap</span> per window, plus{' '}
-          <span className="font-mono">burst</span>. Exceeded budget → 429 +
-          audit.
+          Steady limit per window, plus a short burst. When exceeded, the call
+          is blocked and logged.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="scope" hint="enum">
+          <Field label="Applies to">
             <div className="flex h-8 items-center">
               <ScopeBadge scope={quota.scope} />
             </div>
           </Field>
-          <Field label="target" hint="text">
-            <p className="font-mono text-[13px]">{quota.targetLabel}</p>
+          <Field label="Target">
+            <p className="text-[13px]">{quota.targetLabel}</p>
           </Field>
-          <Field label="cap" hint="int4" htmlFor="quota-cap">
+          <Field label="Cap" htmlFor="quota-cap">
             <Input
               id="quota-cap"
               type="number"
@@ -484,10 +474,9 @@ function QuotaDetail({
               value={capDraft}
               aria-invalid={!capValid}
               onChange={(e) => setCapDraft(e.target.value)}
-              className="font-mono"
             />
           </Field>
-          <Field label="burst" hint="int4" htmlFor="quota-burst">
+          <Field label="Burst" htmlFor="quota-burst">
             <Input
               id="quota-burst"
               type="number"
@@ -496,24 +485,23 @@ function QuotaDetail({
               value={burstDraft}
               aria-invalid={!burstValid}
               onChange={(e) => setBurstDraft(e.target.value)}
-              className="font-mono"
             />
           </Field>
-          <Field label="window" hint="enum" htmlFor="quota-window">
+          <Field label="Window" htmlFor="quota-window">
             <select
               id="quota-window"
               value={windowDraft}
               onChange={(e) => setWindowDraft(e.target.value as QuotaWindow)}
-              className="border-border bg-background h-8 w-full rounded-sm border px-2.5 font-mono text-xs outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40"
+              className="border-border bg-background h-8 w-full rounded-sm border px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40"
             >
               {WINDOW_OPTIONS.map((w) => (
                 <option key={w} value={w}>
-                  {w}
+                  {WINDOW_LABELS[w]}
                 </option>
               ))}
             </select>
           </Field>
-          <Field label="enabled" hint="bool" htmlFor="quota-enabled">
+          <Field label="Enabled" htmlFor="quota-enabled">
             <label className="flex h-8 cursor-pointer items-center gap-2">
               <input
                 id="quota-enabled"
@@ -522,8 +510,8 @@ function QuotaDetail({
                 onChange={(e) => setEnabledDraft(e.target.checked)}
                 className="accent-primary size-3.5"
               />
-              <span className="font-mono text-[13px]">
-                {enabledDraft ? 'enforcing' : 'paused'}
+              <span className="text-[13px]">
+                {enabledDraft ? 'Enforcing' : 'Paused'}
               </span>
             </label>
           </Field>
@@ -533,30 +521,28 @@ function QuotaDetail({
             <Button type="button" size="sm" variant="outline" onClick={resetDraft}>
               Discard
             </Button>
-            <span className="text-muted-foreground font-mono text-[11px]">
+            <span className="text-muted-foreground text-[11px]">
               Unsaved changes
             </span>
           </div>
         ) : null}
       </DetailSection>
 
-      <DetailSection title="Profile">
+      <DetailSection title="Updated">
         <MetaGrid
           items={[
-            { label: 'quota_id', type: 'text', value: quota.id },
             {
-              label: 'updated_at',
-              type: 'timestamptz',
+              label: 'Last updated',
               value: formatTimestamp(quota.updatedAt),
             },
           ]}
         />
       </DetailSection>
 
-      <DetailSection title={`429 hits on this quota (${relatedHits.length})`}>
+      <DetailSection title={`Blocked on this limit (${relatedHits.length})`}>
         {relatedHits.length === 0 ? (
-          <p className="text-muted-foreground font-mono text-xs">
-            No recent hits for this bucket.
+          <p className="text-muted-foreground text-xs">
+            No recent blocks for this limit.
           </p>
         ) : (
           <ul className="divide-border flex flex-col divide-y border border-border">
@@ -566,14 +552,14 @@ function QuotaDetail({
                 className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-mono text-[13px]">{hit.tool}</p>
+                  <p className="truncate text-[13px]">{hit.tool}</p>
                   <div className="mt-1 flex items-center gap-2">
                     <AgentBadge agentId={hit.agentId} />
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
-                  <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
-                    Retry-After {hit.retryAfterSeconds}s
+                  <span className="text-muted-foreground text-[11px] tabular-nums">
+                    Try again in {hit.retryAfterSeconds}s
                   </span>
                   {hit.auditEventId ? (
                     <Link
@@ -595,25 +581,18 @@ function QuotaDetail({
 
 function Field({
   label,
-  hint,
   htmlFor,
   children,
 }: {
   label: string
-  hint: string
   htmlFor?: string
   children: ReactNode
 }) {
   return (
     <div className="border-border flex flex-col gap-1.5 border px-3 py-2.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor={htmlFor} className="text-muted-foreground text-[11px]">
-          {label}
-        </Label>
-        <span className="text-muted-foreground font-mono text-[10px] opacity-70">
-          {hint}
-        </span>
-      </div>
+      <Label htmlFor={htmlFor} className="text-muted-foreground text-[11px]">
+        {label}
+      </Label>
       {children}
     </div>
   )

@@ -1,16 +1,16 @@
 import { useState } from 'react'
 
 import { ConditionBuilder } from '@/components/rules/ConditionBuilder'
-import { previewRule } from '@/components/rules/rule-preview'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
-  RULE_TOOLS,
   condOpNeedsValue,
   createRuleId,
   emptyConditionGroup,
   isConditionGroup,
+  mcpServerForTool,
+  toolGroupsForAgent,
   type ConditionGroup,
   type PolicyRule,
   type RuleOutcome,
@@ -30,40 +30,76 @@ function validateWhen(when: ConditionGroup): boolean {
 }
 
 export function RuleEditorPanel({
+  agentId,
   initial,
+  defaultMcpId,
   onSave,
   onCancel,
 }: {
+  agentId: string
   initial?: PolicyRule | null
+  /** Prefer this MCP when creating a rule (e.g. active filter). */
+  defaultMcpId?: string | null
   onSave: (rule: PolicyRule) => void
   onCancel: () => void
 }) {
+  const groups = toolGroupsForAgent(agentId)
+
+  const initialMcpId =
+    (initial?.tool ? mcpServerForTool(initial.tool)?.id : undefined) ??
+    defaultMcpId ??
+    groups[0]?.server.id ??
+    ''
+
+  const initialTool =
+    initial?.tool ??
+    groups.find((g) => g.server.id === initialMcpId)?.tools[0] ??
+    groups[0]?.tools[0] ??
+    ''
+
   const [name, setName] = useState(initial?.name ?? '')
-  const [tool, setTool] = useState(initial?.tool ?? 'shop.checkout')
+  const [mcpId, setMcpId] = useState(initialMcpId)
+  const [tool, setTool] = useState(initialTool)
   const [then, setThen] = useState<RuleOutcome>(initial?.then ?? 'needs_ai')
   const [when, setWhen] = useState<ConditionGroup>(
     initial?.when ?? emptyConditionGroup('and'),
   )
 
-  const preview = previewRule({ tool, when, then })
-  const canSave = name.trim().length > 0 && validateWhen(when)
+  const tools = groups.find((g) => g.server.id === mcpId)?.tools ?? []
+  const canSave = name.trim().length > 0 && Boolean(tool) && validateWhen(when)
 
-  function handleToolChange(nextTool: string) {
+  function handleMcpChange(nextMcpId: string) {
+    setMcpId(nextMcpId)
+    const nextTools =
+      groups.find((g) => g.server.id === nextMcpId)?.tools ?? []
+    const nextTool = nextTools.includes(tool) ? tool : (nextTools[0] ?? '')
     setTool(nextTool)
-    // Keep tree; field dropdowns filter per tool.
+  }
+
+  if (groups.length === 0) {
+    return (
+      <div className="border-border bg-background flex flex-col gap-3 border p-3">
+        <p className="text-muted-foreground text-xs">
+          This agent has no MCP servers attached — attach servers before
+          authoring tool rules.
+        </p>
+        <div className="flex justify-end">
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="border-border flex flex-col gap-3 border bg-background p-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground">
-          {initial ? 'Edit rule' : 'New rule'}
-        </p>
-      </div>
-
+    <div className="border-border bg-background flex flex-col gap-3 border p-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="rule-name" className="text-muted-foreground font-mono text-[11px]">
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
+          <Label
+            htmlFor="rule-name"
+            className="text-muted-foreground font-mono text-[11px]"
+          >
             name
           </Label>
           <Input
@@ -73,17 +109,42 @@ export function RuleEditorPanel({
             onChange={(e) => setName(e.target.value)}
           />
         </div>
+
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="rule-tool" className="text-muted-foreground font-mono text-[11px]">
+          <Label
+            htmlFor="rule-mcp"
+            className="text-muted-foreground font-mono text-[11px]"
+          >
+            mcp
+          </Label>
+          <select
+            id="rule-mcp"
+            className="border-border bg-background h-8 w-full rounded-sm border px-2.5 text-xs"
+            value={mcpId}
+            onChange={(e) => handleMcpChange(e.target.value)}
+          >
+            {groups.map(({ server }) => (
+              <option key={server.id} value={server.id}>
+                {server.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <Label
+            htmlFor="rule-tool"
+            className="text-muted-foreground font-mono text-[11px]"
+          >
             tool
           </Label>
           <select
             id="rule-tool"
             className="border-border bg-background h-8 w-full rounded-sm border px-2.5 font-mono text-xs"
             value={tool}
-            onChange={(e) => handleToolChange(e.target.value)}
+            onChange={(e) => setTool(e.target.value)}
           >
-            {RULE_TOOLS.map((t) => (
+            {tools.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>
@@ -100,7 +161,10 @@ export function RuleEditorPanel({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="rule-then" className="text-muted-foreground font-mono text-[11px]">
+        <Label
+          htmlFor="rule-then"
+          className="text-muted-foreground font-mono text-[11px]"
+        >
           then
         </Label>
         <select
@@ -114,10 +178,6 @@ export function RuleEditorPanel({
           <option value="needs_ai">needs_ai</option>
         </select>
       </div>
-
-      <p className="bg-muted/40 border-border rounded-sm border px-2.5 py-2 font-mono text-[11px] leading-relaxed break-all">
-        {preview}
-      </p>
 
       <div className="flex justify-end gap-2">
         <Button type="button" variant="ghost" onClick={onCancel}>

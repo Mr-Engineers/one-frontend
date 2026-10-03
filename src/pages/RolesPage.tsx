@@ -3,7 +3,6 @@ import { useMemo, useState } from 'react'
 import {
   DetailHeader,
   DetailSection,
-  JsonBlock,
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
@@ -38,29 +37,29 @@ import {
 const DETAIL_TITLE_ID = 'role-detail-title'
 
 const ROLE_FILTER_COLUMNS: FilterColumnDef<Role>[] = [
-  { id: 'name', label: 'name', type: 'text', getValue: (r) => r.name },
+  { id: 'name', label: 'Name', type: 'text', getValue: (r) => r.name },
   {
     id: 'status',
-    label: 'status',
+    label: 'Status',
     type: 'enum',
     getValue: (r) => r.status,
     options: ['active', 'draft', 'archived'],
   },
   {
     id: 'agents',
-    label: 'agents',
+    label: 'Agents',
     type: 'int4',
     getValue: (r) => r.agentIds.length,
   },
   {
     id: 'grants',
-    label: 'grants',
+    label: 'Tools allowed',
     type: 'int4',
     getValue: (r) => countGrantedTools(r),
   },
   {
     id: 'updated',
-    label: 'updated',
+    label: 'Updated',
     type: 'timestamptz',
     getValue: (r) => r.updatedAt,
   },
@@ -94,18 +93,18 @@ export function RolesPage() {
           rowCount={visible.length}
         />
         {visible.length === 0 ? (
-          <p className="text-muted-foreground px-4 py-8 font-mono text-xs">
+          <p className="text-muted-foreground px-4 py-8 text-xs">
             No roles match this filter.
           </p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead type="text">name</TableHead>
-                <TableHead type="enum">status</TableHead>
-                <TableHead type="text">assigned</TableHead>
-                <TableHead type="int4">grants</TableHead>
-                <TableHead type="timestamptz">updated</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Assigned</TableHead>
+                <TableHead>Tools allowed</TableHead>
+                <TableHead>Updated</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -120,17 +119,13 @@ export function RolesPage() {
                   }
                   onClick={() => openRow(role)}
                 >
-                  <TableCell className="font-medium font-mono">
-                    {role.name}
-                  </TableCell>
+                  <TableCell className="font-medium">{role.name}</TableCell>
                   <TableCell>
                     <StatusBadge status={role.status} />
                   </TableCell>
                   <TableCell>
                     {role.agentIds.length === 0 ? (
-                      <span className="text-muted-foreground font-mono text-xs">
-                        —
-                      </span>
+                      <span className="text-muted-foreground text-xs">—</span>
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {role.agentIds.map((id) => (
@@ -263,37 +258,32 @@ function RoleDetail({
         <MetaGrid
           items={[
             {
-              label: 'status',
-              type: 'enum',
+              label: 'Status',
               value: <StatusBadge status={role.status} />,
             },
             {
-              label: 'agents',
-              type: 'int4',
+              label: 'Agents',
               value: String(role.agentIds.length),
             },
             {
-              label: 'granted_tools',
-              type: 'int4',
+              label: 'Tools allowed',
               value: String(grantCount),
             },
             {
-              label: 'created_at',
-              type: 'timestamptz',
+              label: 'Created',
               value: formatTimestamp(role.createdAt),
             },
             {
-              label: 'updated_at',
-              type: 'timestamptz',
+              label: 'Updated',
               value: formatTimestamp(role.updatedAt),
             },
           ]}
         />
       </DetailSection>
 
-      <DetailSection title="Tool / server grants">
+      <DetailSection title="Allowed tools">
         <p className="text-muted-foreground mb-2 text-xs">
-          Deny-by-default. Ungranted tools never reach MCP.
+          Everything starts denied. Only checked tools can be called.
         </p>
         <div className="border-border flex flex-col gap-0 border">
           {role.grants.map((grant) => {
@@ -315,12 +305,10 @@ function RoleDetail({
                     label={`Grant all tools on ${grant.serverName}`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="font-mono text-[13px] font-medium">
-                      {grant.serverName}
-                    </p>
-                    <p className="text-muted-foreground font-mono text-[11px]">
-                      {grant.serverId} · {granted}/{total} tools
-                      {grant.serverWide ? ' · server-wide' : ''}
+                    <p className="text-[13px] font-medium">{grant.serverName}</p>
+                    <p className="text-muted-foreground text-[11px]">
+                      {granted}/{total} tools
+                      {grant.serverWide ? ' · all enabled' : ''}
                     </p>
                   </div>
                 </div>
@@ -336,9 +324,9 @@ function RoleDetail({
                         onChange={() => toggleTool(grant.serverId, tool)}
                         label={`Grant ${tool}`}
                       />
-                      <span className="font-mono text-[12px]">{tool}</span>
-                      <span className="text-muted-foreground ml-auto font-mono text-[10px]">
-                        {allowed || grant.serverWide ? 'allow' : 'deny'}
+                      <span className="text-[12px]">{tool}</span>
+                      <span className="text-muted-foreground ml-auto text-[10px]">
+                        {allowed || grant.serverWide ? 'Allow' : 'Deny'}
                       </span>
                     </li>
                   ))}
@@ -349,11 +337,9 @@ function RoleDetail({
         </div>
       </DetailSection>
 
-      <DetailSection title="Agent → role assignment">
+      <DetailSection title="Assigned agents">
         {agents.length === 0 ? (
-          <p className="text-muted-foreground font-mono text-xs">
-            No agents assigned.
-          </p>
+          <p className="text-muted-foreground text-xs">No agents assigned.</p>
         ) : (
           <ul className="border-border divide-border divide-y border">
             {agents.map((agent) => (
@@ -362,11 +348,11 @@ function RoleDetail({
                 className="flex items-center justify-between gap-3 px-3 py-2"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-mono text-[13px] font-medium">
+                  <p className="truncate text-[13px] font-medium">
                     {agent.name}
                   </p>
-                  <p className="text-muted-foreground font-mono text-[11px]">
-                    {agent.id}
+                  <p className="text-muted-foreground text-[11px]">
+                    {agent.role}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
@@ -379,27 +365,28 @@ function RoleDetail({
         )}
       </DetailSection>
 
-      <DetailSection title="Effective permissions">
+      <DetailSection title="What this role can call">
         <p className="text-muted-foreground mb-2 text-xs">
-          What agents on this role can list/call after RBAC (before rules /
-          specialist).
+          Effective allow-list before rules and AI review.
         </p>
         {effective.length === 0 ? (
-          <p className="text-muted-foreground font-mono text-xs">
-            Empty allow-list — all tool calls denied at RBAC.
+          <p className="text-muted-foreground text-xs">
+            No tools allowed — all calls are denied at access check.
           </p>
         ) : (
-          <JsonBlock
-            value={{
-              role: role.name,
-              deny_by_default: true,
-              allowed_tools: effective.map((e) => ({
-                tool: e.tool,
-                server: e.serverId,
-                via: e.via,
-              })),
-            }}
-          />
+          <ul className="border-border divide-border divide-y border">
+            {effective.map((e) => (
+              <li
+                key={`${e.serverId}:${e.tool}`}
+                className="flex items-center justify-between gap-3 px-3 py-2"
+              >
+                <span className="text-[13px]">{e.tool}</span>
+                <span className="text-muted-foreground shrink-0 text-[11px]">
+                  {e.via === 'server' ? 'Whole server' : 'Single tool'}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </DetailSection>
     </>

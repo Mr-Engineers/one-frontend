@@ -65,7 +65,7 @@ const specialistHealthTheme: Record<
   healthy: { theme: BadgeTheme.Green, label: 'Healthy' },
   degraded: { theme: BadgeTheme.Yellow, label: 'Degraded' },
   down: { theme: BadgeTheme.Red, label: 'Down' },
-  circuit_open: { theme: BadgeTheme.Red, label: 'Circuit open' },
+  circuit_open: { theme: BadgeTheme.Red, label: 'Paused' },
 }
 
 const agentTheme: Record<string, { theme: BadgeTheme; label: string }> = {

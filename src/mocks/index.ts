@@ -46,6 +46,7 @@ export {
   activeVersionOf,
   condOpLabel,
   condOpNeedsValue,
+  countRulesForMcp,
   createConditionId,
   createPackId,
   createRuleId,
@@ -55,11 +56,14 @@ export {
   fieldsForTool,
   isConditionGroup,
   matchCondition,
+  mcpServerForTool,
+  mcpsForAgent,
   mockDryRunSamples,
   mockRulePacks,
   operatorsForField,
   packRuleCount,
   packStatus,
+  toolGroupsForAgent,
   toolMatchesGlob,
 } from './rules'
 export { mockSpecialists } from './specialists'

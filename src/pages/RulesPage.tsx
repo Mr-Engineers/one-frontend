@@ -1,18 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { RiAddLine, RiBookMarkedLine } from '@remixicon/react'
+import { RiAddLine } from '@remixicon/react'
 
-import { formatTimestamp } from '@/components/list/DetailMeta'
 import { CreateRulePackWizard } from '@/components/rules/CreateRulePackWizard'
 import { RulePackWorkspace } from '@/components/rules/RulePackWorkspace'
-import { RuleOutcomeBadge } from '@/components/rules/RuleOutcomeBadge'
 import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { routes } from '@/lib/routes'
 import {
   AGENT_IDS,
-  activeVersionOf,
   mockRulePacks,
   packRuleCount,
   packStatus,
@@ -147,84 +144,30 @@ function RulePackCard({
   pack: RulePack
   onOpen: () => void
 }) {
-  const version = activeVersionOf(pack)
-  const rules = version?.rules ?? []
-  const preview = rules.slice(0, 3)
+  const ruleCount = packRuleCount(pack)
 
   return (
-    <article className="border-border bg-background flex flex-col border">
-      <div className="border-border flex items-start justify-between gap-3 border-b px-4 py-3">
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(
+        'border-border bg-background flex w-full flex-col border px-4 py-3 text-left transition-colors',
+        'hover:bg-secondary/40 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-medium">{pack.name}</h2>
-          <p className="text-muted-foreground mt-0.5 truncate font-mono text-[11px]">
-            pack:{pack.name}/{pack.activeVersion}
+          <p className="text-muted-foreground mt-0.5 font-mono text-[11px]">
+            {pack.activeVersion} · {ruleCount}{' '}
+            {ruleCount === 1 ? 'rule' : 'rules'}
           </p>
         </div>
         <StatusBadge status={packStatus(pack)} />
       </div>
-
-      <div className="flex flex-col gap-3 px-4 py-3">
-        <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
-          {pack.description}
-        </p>
-
-        <dl className="border-border grid grid-cols-2 border text-[11px]">
-          <div className="border-border border-r border-b px-2.5 py-2">
-            <dt className="text-muted-foreground font-mono">agent</dt>
-            <dd className="mt-1">
-              <AgentBadge agentId={pack.agentId} />
-            </dd>
-          </div>
-          <div className="border-border border-b px-2.5 py-2">
-            <dt className="text-muted-foreground font-mono">rules</dt>
-            <dd className="mt-0.5 font-mono">{packRuleCount(pack)}</dd>
-          </div>
-          <div className="border-border border-r px-2.5 py-2">
-            <dt className="text-muted-foreground font-mono">version</dt>
-            <dd className="mt-0.5 font-mono">{pack.activeVersion}</dd>
-          </div>
-          <div className="px-2.5 py-2">
-            <dt className="text-muted-foreground font-mono">updated</dt>
-            <dd className="mt-0.5 font-mono">
-              {formatTimestamp(pack.updatedAt)}
-            </dd>
-          </div>
-        </dl>
-
-        <div className="flex flex-wrap gap-1">
-          {preview.map((rule) => (
-            <span
-              key={rule.id}
-              className="border-border inline-flex items-center gap-1 border px-1.5 py-0.5"
-            >
-              <span className="text-muted-foreground font-mono text-[10px]">
-                {rule.tool}
-              </span>
-              <RuleOutcomeBadge outcome={rule.then} />
-            </span>
-          ))}
-          {rules.length > 3 ? (
-            <span className="text-muted-foreground px-1 font-mono text-[10px]">
-              +{rules.length - 3}
-            </span>
-          ) : null}
-          {rules.length === 0 ? (
-            <span className="text-muted-foreground inline-flex items-center gap-1 font-mono text-[10px]">
-              <RiBookMarkedLine className="size-3" />
-              empty draft
-            </span>
-          ) : null}
-        </div>
+      <div className="mt-3">
+        <AgentBadge agentId={pack.agentId} />
       </div>
-
-      <div className="border-border mt-auto flex items-center gap-2 border-t px-3 py-2">
-        <Button type="button" variant="outline" size="xs" onClick={onOpen}>
-          Open editor
-        </Button>
-        <Button type="button" variant="ghost" size="xs" onClick={onOpen}>
-          Dry-run
-        </Button>
-      </div>
-    </article>
+    </button>
   )
 }

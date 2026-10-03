@@ -145,13 +145,11 @@ export function OverviewPage() {
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="border-border grid grid-cols-2 border-b xl:grid-cols-4">
         <MetricCell
-          label="calls_today"
-          type="int4"
+          label="Calls today"
           value={m.callsToday.toLocaleString()}
           hint={
             <span
               className={cn(
-                'font-mono',
                 m.callsDeltaPct >= 0 ? 'text-primary' : 'text-destructive',
               )}
             >
@@ -161,8 +159,7 @@ export function OverviewPage() {
           }
         />
         <MetricCell
-          label="pending_approvals"
-          type="int4"
+          label="Waiting approvals"
           value={String(m.pendingApprovals)}
           hint={
             <Link
@@ -174,18 +171,17 @@ export function OverviewPage() {
           }
         />
         <MetricCell
-          label="deny_rate"
-          type="float"
+          label="Deny rate"
           value={formatPct(m.denyRatePct)}
           hint={
-            <span className="font-mono">
-              {formatPct(m.cautionRatePct)} caution · {m.rateLimitedToday} rl
+            <span>
+              {formatPct(m.cautionRatePct)} caution · {m.rateLimitedToday}{' '}
+              rate limited
             </span>
           }
         />
         <MetricCell
-          label="active_agents"
-          type="int4"
+          label="Active agents"
           value={String(m.activeAgents)}
           className="border-r-0 xl:border-r-0"
           hint={
@@ -202,7 +198,7 @@ export function OverviewPage() {
       <Panel className="border-r-0">
         <PanelHead
           title="Calls over time"
-          description="Gateway invocations today · 5m buckets"
+          description="Activity today · 5-minute buckets"
         />
         <CallsOverTimeChart series={m.callsOverTime} />
       </Panel>
@@ -359,13 +355,11 @@ export function OverviewPage() {
 
 function MetricCell({
   label,
-  type,
   value,
   hint,
   className,
 }: {
   label: string
-  type: string
   value: string
   hint: ReactNode
   className?: string
@@ -377,11 +371,8 @@ function MetricCell({
         className,
       )}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-muted-foreground text-xs">{label}</span>
-        <span className="text-muted-foreground font-mono text-[10px]">{type}</span>
-      </div>
-      <p className="font-mono text-2xl tracking-tight tabular-nums">{value}</p>
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <p className="text-2xl tracking-tight tabular-nums">{value}</p>
       <p className="text-muted-foreground text-xs">{hint}</p>
     </div>
   )

@@ -1,16 +1,23 @@
 import { useMemo, useState } from 'react'
+import { RiAddLine, RiCloseLine } from '@remixicon/react'
 
 import {
   DetailHeader,
   DetailSection,
-  JsonBlock,
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
+import { AttachMcpAuthFlow } from '@/components/mcp/AttachMcpAuthFlow'
 import { SquashListArea } from '@/components/squash-reveal'
-import { StatusBadge } from '@/components/status/StatusBadge'
+import { McpHealthBadge, StatusBadge } from '@/components/status/StatusBadge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Table,
   TableBody,
@@ -26,29 +33,29 @@ import {
   type FilterRule,
 } from '@/lib/table-filter'
 import { routes } from '@/lib/routes'
-import { mockAgents, type Agent } from '@/mocks'
+import { mockAgents, mockMcpServers, type Agent, type McpServer } from '@/mocks'
 
 const DETAIL_TITLE_ID = 'agent-detail-title'
 
 const AGENT_FILTER_COLUMNS: FilterColumnDef<Agent>[] = [
-  { id: 'name', label: 'name', type: 'text', getValue: (r) => r.name },
-  { id: 'role', label: 'role', type: 'text', getValue: (r) => r.role },
+  { id: 'name', label: 'Name', type: 'text', getValue: (r) => r.name },
+  { id: 'role', label: 'Role', type: 'text', getValue: (r) => r.role },
   {
     id: 'status',
-    label: 'status',
+    label: 'Status',
     type: 'enum',
     getValue: (r) => r.status,
     options: ['active', 'revoked', 'disabled'],
   },
   {
     id: 'api_key',
-    label: 'api_key',
+    label: 'API key',
     type: 'text',
     getValue: (r) => r.apiKeyHint,
   },
   {
     id: 'last_seen',
-    label: 'last_seen',
+    label: 'Last seen',
     type: 'timestamptz',
     getValue: (r) => r.lastSeenAt,
   },
@@ -57,6 +64,10 @@ const AGENT_FILTER_COLUMNS: FilterColumnDef<Agent>[] = [
 export function AgentsPage() {
   const [agents, setAgents] = useState(mockAgents)
   const [filters, setFilters] = useState<FilterRule[]>([])
+  const [attachTarget, setAttachTarget] = useState<{
+    agent: Agent
+    server: McpServer
+  } | null>(null)
   const visible = useMemo(
     () => applyTableFilter(agents, AGENT_FILTER_COLUMNS, filters),
     [agents, filters],
@@ -67,6 +78,18 @@ export function AgentsPage() {
     rows: visible,
     detailPath: routes.agentDetail,
   })
+
+  function patchAgent(next: Agent) {
+    setAgents((prev) => prev.map((row) => (row.id === next.id ? next : row)))
+  }
+
+  function attachServer(agent: Agent, serverId: string) {
+    if (agent.mcpServerIds.includes(serverId)) return
+    patchAgent({
+      ...agent,
+      mcpServerIds: [...agent.mcpServerIds, serverId],
+    })
+  }
 
   const list = useMemo(
     () => (
@@ -80,11 +103,11 @@ export function AgentsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead type="text">name</TableHead>
-              <TableHead type="text">role</TableHead>
-              <TableHead type="enum">status</TableHead>
-              <TableHead type="text">api_key</TableHead>
-              <TableHead type="timestamptz">last_seen</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>API key</TableHead>
+              <TableHead>Last seen</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -104,7 +127,9 @@ export function AgentsPage() {
                 <TableCell>
                   <StatusBadge status={agent.status} />
                 </TableCell>
-                <TableCell className="font-mono">{agent.apiKeyHint}</TableCell>
+                <TableCell className="font-mono text-[12px]">
+                  {agent.apiKeyHint}
+                </TableCell>
                 <TableCell>{formatTimestamp(agent.lastSeenAt)}</TableCell>
               </TableRow>
             ))}
@@ -116,51 +141,91 @@ export function AgentsPage() {
   )
 
   return (
-    <SquashListArea
-      squash={squash}
-      payloadKey={(a) => a.id}
-      ariaLabel="Agent details"
-      ariaLabelledBy={DETAIL_TITLE_ID}
-      closeAriaLabel="Close agent details"
-      onClose={closeRow}
-      list={list}
-    >
-      {(agent) => (
-        <AgentDetail
-          agent={agent}
-          onRevoke={() => {
-            setAgents((prev) =>
-              prev.map((row) =>
-                row.id === agent.id
-                  ? {
-                      ...row,
-                      status: 'revoked',
-                      apiKeyHint: 'gw_rev_••••dead',
-                    }
-                  : row,
-              ),
-            )
-            closeRow()
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <SquashListArea
+        squash={squash}
+        payloadKey={(a) => a.id}
+        ariaLabel="Agent details"
+        ariaLabelledBy={DETAIL_TITLE_ID}
+        closeAriaLabel="Close agent details"
+        onClose={closeRow}
+        list={list}
+      >
+        {(agent) => {
+          const live = agents.find((a) => a.id === agent.id) ?? agent
+          return (
+            <AgentDetail
+              agent={live}
+              onRevoke={() => {
+                patchAgent({
+                  ...live,
+                  status: 'revoked',
+                  apiKeyHint: 'gw_rev_••••dead',
+                })
+                closeRow()
+              }}
+              onChange={patchAgent}
+              onRequestAttach={(server) => {
+                if (server.requiresAuth) {
+                  setAttachTarget({ agent: live, server })
+                  return
+                }
+                attachServer(live, server.id)
+              }}
+            />
+          )
+        }}
+      </SquashListArea>
+
+      {attachTarget ? (
+        <AttachMcpAuthFlow
+          open
+          agent={attachTarget.agent}
+          server={attachTarget.server}
+          onClose={() => setAttachTarget(null)}
+          onAttached={(serverId) => {
+            const live =
+              agents.find((a) => a.id === attachTarget.agent.id) ??
+              attachTarget.agent
+            attachServer(live, serverId)
           }}
         />
-      )}
-    </SquashListArea>
+      ) : null}
+    </div>
   )
 }
 
 function AgentDetail({
   agent,
   onRevoke,
+  onChange,
+  onRequestAttach,
 }: {
   agent: Agent
   onRevoke: () => void
+  onChange: (agent: Agent) => void
+  onRequestAttach: (server: McpServer) => void
 }) {
+  const linked = agent.mcpServerIds
+    .map((id) => mockMcpServers.find((s) => s.id === id))
+    .filter((s): s is McpServer => Boolean(s))
+  const available = mockMcpServers.filter(
+    (s) => !agent.mcpServerIds.includes(s.id),
+  )
+
+  function detachMcp(serverId: string) {
+    onChange({
+      ...agent,
+      mcpServerIds: agent.mcpServerIds.filter((id) => id !== serverId),
+    })
+  }
+
   return (
     <>
       <DetailHeader
         titleId={DETAIL_TITLE_ID}
         title={agent.name}
-        subtitle={agent.id}
+        subtitle={`${agent.role} · last seen ${formatTimestamp(agent.lastSeenAt)}`}
         actions={
           agent.status === 'active' ? (
             <Button type="button" variant="destructive" onClick={onRevoke}>
@@ -173,39 +238,93 @@ function AgentDetail({
         <MetaGrid
           items={[
             {
-              label: 'status',
-              type: 'enum',
+              label: 'Status',
               value: <StatusBadge status={agent.status} />,
             },
-            { label: 'role', type: 'text', value: agent.role },
+            { label: 'Role', value: agent.role },
             {
-              label: 'rate_limit_override',
-              type: 'text',
+              label: 'Rate limit',
               value: agent.rateLimitOverride ?? 'Org default',
             },
-            { label: 'api_key', type: 'text', value: agent.apiKeyHint },
+            { label: 'API key', value: agent.apiKeyHint },
             {
-              label: 'created_at',
-              type: 'timestamptz',
+              label: 'Created',
               value: formatTimestamp(agent.createdAt),
             },
             {
-              label: 'last_seen',
-              type: 'timestamptz',
+              label: 'Last seen',
               value: formatTimestamp(agent.lastSeenAt),
             },
           ]}
         />
       </DetailSection>
-      <DetailSection title="Key material (mock)">
-        <JsonBlock
-          value={{
-            agent_id: agent.id,
-            key_hint: agent.apiKeyHint,
-            reveal: agent.status === 'active' ? 'gw_live_••••••••' : null,
-            note: 'Reveal/rotate will call the API later',
-          }}
-        />
+
+      <DetailSection
+        title="Connected servers"
+        actions={
+          available.length > 0 ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="xs">
+                  <RiAddLine className="size-3" />
+                  Attach
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {available.map((server) => (
+                  <DropdownMenuItem
+                    key={server.id}
+                    onSelect={() => onRequestAttach(server)}
+                  >
+                    <span className="truncate">{server.name}</span>
+                    <span className="text-muted-foreground ml-auto font-mono text-[10px]">
+                      {server.requiresAuth ? 'oauth' : 'open'}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null
+        }
+      >
+        <p className="text-muted-foreground mb-2 text-xs">
+          Servers this agent can reach. Which tools it may call still come from
+          its role.
+        </p>
+        {linked.length === 0 ? (
+          <p className="text-muted-foreground text-xs">
+            No servers attached.
+          </p>
+        ) : (
+          <ul className="border-border divide-border divide-y border">
+            {linked.map((server) => (
+              <li
+                key={server.id}
+                className="flex items-center gap-3 px-3 py-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium">
+                    {server.name}
+                  </p>
+                  <p className="text-muted-foreground text-[11px]">
+                    {server.kind} · {server.toolCount} tools
+                  </p>
+                </div>
+                <McpHealthBadge health={server.health} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="shrink-0"
+                  onClick={() => detachMcp(server.id)}
+                  aria-label={`Detach ${server.name}`}
+                >
+                  <RiCloseLine className="size-3.5" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
       </DetailSection>
     </>
   )

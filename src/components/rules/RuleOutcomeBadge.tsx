@@ -7,7 +7,7 @@ const theme: Record<
 > = {
   allow: { theme: BadgeTheme.Green, label: 'Allow' },
   deny: { theme: BadgeTheme.Red, label: 'Deny' },
-  needs_ai: { theme: BadgeTheme.Yellow, label: 'Needs AI' },
+  needs_ai: { theme: BadgeTheme.Yellow, label: 'Send to AI' },
   no_match: { theme: BadgeTheme.Gray, label: 'No match' },
 }
 

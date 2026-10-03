@@ -30,6 +30,8 @@ export type Agent = {
   status: 'active' | 'revoked' | 'disabled'
   apiKeyHint: string
   rateLimitOverride: string | null
+  /** MCP servers this agent may use (registry attach; tool grants still via role). */
+  mcpServerIds: string[]
   createdAt: string
   lastSeenAt: string
 }

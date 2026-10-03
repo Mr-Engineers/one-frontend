@@ -96,9 +96,7 @@ export function SettingsPage() {
           </p>
         </div>
         {savedFlash ? (
-          <span className="text-primary shrink-0 font-mono text-[11px]">
-            saved
-          </span>
+          <span className="text-primary shrink-0 text-[11px]">Saved</span>
         ) : null}
       </div>
 
@@ -111,8 +109,8 @@ export function SettingsPage() {
           <div className="flex flex-col gap-4 px-4 py-4">
             <Field
               id="org-name"
-              label="org_name"
-              hint="Display name for this Modus workspace."
+              label="Organization name"
+              hint="Display name for this workspace."
             >
               <Input
                 id="org-name"
@@ -123,11 +121,11 @@ export function SettingsPage() {
 
             <Field
               id="auth-mode"
-              label="auth_mode"
-              hint="No self-registration. Operators must be invited here."
+              label="Sign-in"
+              hint="No self-registration. People must be invited here."
             >
-              <div className="border-border bg-muted/40 flex h-8 items-center rounded-sm border px-2.5 font-mono text-xs">
-                invite_only
+              <div className="border-border bg-muted/40 flex h-8 items-center rounded-sm border px-2.5 text-xs">
+                Invite only
               </div>
             </Field>
           </div>
@@ -141,8 +139,8 @@ export function SettingsPage() {
           <div className="flex flex-col gap-4 px-4 py-4">
             <Field
               id="approval-ttl"
-              label="default_approval_ttl"
-              hint="Pending approvals expire to deny after this TTL."
+              label="Approval timeout"
+              hint="Waiting approvals auto-deny after this time."
             >
               <Segmented
                 value={String(workspace.defaultApprovalTtlSeconds)}
@@ -160,14 +158,14 @@ export function SettingsPage() {
 
             <Field
               id="fail-closed"
-              label="specialist_fail_closed"
-              hint="On specialist error or timeout, escalate or deny — never auto-allow."
+              label="On AI failure"
+              hint="If AI review errors or times out, escalate or deny — never auto-allow."
             >
               <Segmented
                 value={workspace.specialistFailClosed ? 'on' : 'off'}
                 options={[
-                  { value: 'on', label: 'on' },
-                  { value: 'off', label: 'off' },
+                  { value: 'on', label: 'Ask a person' },
+                  { value: 'off', label: 'Off' },
                 ]}
                 onChange={(value) =>
                   patchWorkspace({ specialistFailClosed: value === 'on' })
@@ -177,8 +175,8 @@ export function SettingsPage() {
 
             <Field
               id="audit-retention"
-              label="audit_retention_days"
-              hint="How long decision chains are kept for export."
+              label="Keep audit history"
+              hint="How long decision history is kept for export."
             >
               <Segmented
                 value={String(workspace.auditRetentionDays)}
@@ -210,7 +208,7 @@ export function SettingsPage() {
           onSubmit={onInvite}
           className="border-border flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-end"
         >
-          <Field id="invite-email" label="email" className="min-w-0 flex-1">
+          <Field id="invite-email" label="Email" className="min-w-0 flex-1">
             <Input
               id="invite-email"
               type="email"
@@ -221,16 +219,16 @@ export function SettingsPage() {
               onChange={(e) => setInviteEmail(e.target.value)}
             />
           </Field>
-          <Field id="invite-role" label="role" className="sm:w-40">
+          <Field id="invite-role" label="Role" className="sm:w-40">
             <select
               id="invite-role"
               value={inviteRole}
               onChange={(e) => setInviteRole(e.target.value as OperatorRole)}
-              className="border-border bg-background h-8 w-full rounded-sm border px-2.5 font-mono text-xs outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40"
+              className="border-border bg-background h-8 w-full rounded-sm border px-2.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/40"
             >
               {INVITE_ROLES.map((role) => (
                 <option key={role} value={role}>
-                  {role}
+                  {role.charAt(0).toUpperCase() + role.slice(1)}
                 </option>
               ))}
             </select>
@@ -251,13 +249,13 @@ export function SettingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead type="text">name</TableHead>
-                <TableHead type="text">email</TableHead>
-                <TableHead type="enum">role</TableHead>
-                <TableHead type="enum">status</TableHead>
-                <TableHead type="timestamptz">invited</TableHead>
-                <TableHead type="timestamptz">last_active</TableHead>
-                <TableHead type="text">actions</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Invited</TableHead>
+                <TableHead>Last active</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

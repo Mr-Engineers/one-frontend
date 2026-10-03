@@ -51,13 +51,21 @@ function authProviderLabel(user: {
   app_metadata?: Record<string, unknown>
 }) {
   const provider = user.app_metadata?.provider
-  if (typeof provider === 'string' && provider.trim()) return provider
-  return 'email'
+  if (typeof provider === 'string' && provider.trim()) {
+    if (provider === 'email') return 'Email'
+    return provider.charAt(0).toUpperCase() + provider.slice(1)
+  }
+  return 'Email'
 }
 
 function formatExpiresAt(expiresAt: number | undefined) {
   if (!expiresAt) return '—'
   return formatTimestamp(new Date(expiresAt * 1000).toISOString())
+}
+
+function authModeLabel(mode: string) {
+  if (mode === 'invite_only') return 'Invite only'
+  return mode.replaceAll('_', ' ')
 }
 
 export function ProfilePage() {
@@ -83,7 +91,7 @@ export function ProfilePage() {
         <div className="min-w-0">
           <h1 className="text-sm font-medium">Profile</h1>
           <p className="text-muted-foreground mt-0.5 text-xs">
-            Your operator account and session. Workspace invites live in{' '}
+            Your account and session. Workspace invites live in{' '}
             <Link
               to={routes.settings}
               className="text-foreground underline-offset-2 hover:underline"
@@ -112,7 +120,7 @@ export function ProfilePage() {
         </Avatar>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{name}</p>
-          <p className="text-muted-foreground truncate font-mono text-xs">
+          <p className="text-muted-foreground truncate text-xs">
             {email || '—'}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
@@ -122,7 +130,7 @@ export function ProfilePage() {
                 <OperatorStatusBadge status={operator.status} />
               </>
             ) : (
-              <span className="text-muted-foreground font-mono text-[11px]">
+              <span className="text-muted-foreground text-[11px]">
                 Signed in · not on workspace roster
               </span>
             )}
@@ -135,22 +143,13 @@ export function ProfilePage() {
           <DetailSection title="Account">
             <MetaGrid
               items={[
-                { label: 'name', type: 'text', value: name },
+                { label: 'Name', value: name },
                 {
-                  label: 'email',
-                  type: 'text',
+                  label: 'Email',
                   value: email || '—',
                 },
                 {
-                  label: 'user_id',
-                  type: 'uuid',
-                  value: (
-                    <span className="break-all">{user.id}</span>
-                  ),
-                },
-                {
-                  label: 'auth_provider',
-                  type: 'enum',
+                  label: 'Sign-in method',
                   value: authProviderLabel(user),
                 },
               ]}
@@ -163,28 +162,18 @@ export function ProfilePage() {
             <MetaGrid
               items={[
                 {
-                  label: 'signed_in',
-                  type: 'timestamptz',
+                  label: 'Signed in',
                   value: user.last_sign_in_at
                     ? formatTimestamp(user.last_sign_in_at)
                     : '—',
                 },
                 {
-                  label: 'expires_at',
-                  type: 'timestamptz',
+                  label: 'Session ends',
                   value: formatExpiresAt(session?.expires_at),
                 },
                 {
-                  label: 'created_at',
-                  type: 'timestamptz',
-                  value: user.created_at
-                    ? formatTimestamp(user.created_at)
-                    : '—',
-                },
-                {
-                  label: 'auth_mode',
-                  type: 'enum',
-                  value: workspace.authMode,
+                  label: 'Access',
+                  value: authModeLabel(workspace.authMode),
                 },
               ]}
             />
@@ -192,38 +181,28 @@ export function ProfilePage() {
         </section>
       </div>
 
-      <DetailSection title="Workspace membership">
+      <DetailSection title="Workspace">
         {operator ? (
           <MetaGrid
             items={[
               {
-                label: 'org',
-                type: 'text',
+                label: 'Organization',
                 value: workspace.orgName,
               },
               {
-                label: 'operator_id',
-                type: 'text',
-                value: operator.id,
-              },
-              {
-                label: 'role',
-                type: 'enum',
+                label: 'Role',
                 value: <OperatorRoleBadge role={operator.role} />,
               },
               {
-                label: 'status',
-                type: 'enum',
+                label: 'Status',
                 value: <OperatorStatusBadge status={operator.status} />,
               },
               {
-                label: 'invited_at',
-                type: 'timestamptz',
+                label: 'Invited',
                 value: formatTimestamp(operator.invitedAt),
               },
               {
-                label: 'last_active',
-                type: 'timestamptz',
+                label: 'Last active',
                 value: operator.lastActiveAt
                   ? formatTimestamp(operator.lastActiveAt)
                   : '—',
@@ -232,9 +211,8 @@ export function ProfilePage() {
           />
         ) : (
           <p className="text-muted-foreground text-xs leading-relaxed">
-            This session is authenticated, but the email is not on the mock
-            operator roster for {workspace.orgName}. Invite or match the
-            account under Settings when wiring the BFF.
+            You are signed in, but this email is not on the workspace roster
+            for {workspace.orgName}. Ask an admin to invite you in Settings.
           </p>
         )}
       </DetailSection>

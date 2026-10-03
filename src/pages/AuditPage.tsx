@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
 
 import {
+  CollapsibleDetails,
   DetailHeader,
   DetailSection,
   JsonBlock,
   MetaGrid,
   formatTimestamp,
+  humanizeDecisionOutcome,
+  humanizeDecisionStage,
 } from '@/components/list/DetailMeta'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
@@ -32,21 +35,21 @@ const DETAIL_TITLE_ID = 'audit-detail-title'
 const AUDIT_FILTER_COLUMNS: FilterColumnDef<AuditEvent>[] = [
   {
     id: 'time',
-    label: 'time',
+    label: 'Time',
     type: 'timestamptz',
     getValue: (r) => r.timestamp,
   },
-  { id: 'tool', label: 'tool', type: 'text', getValue: (r) => r.tool },
+  { id: 'tool', label: 'Tool', type: 'text', getValue: (r) => r.tool },
   {
     id: 'agent',
-    label: 'agent',
+    label: 'Agent',
     type: 'enum',
     getValue: (r) => r.agentName,
     options: ['Purchasing', 'Support'],
   },
   {
     id: 'decision',
-    label: 'decision',
+    label: 'Decision',
     type: 'enum',
     getValue: (r) => r.decision,
     options: ['allow', 'caution', 'deny', 'rate_limited'],
@@ -78,17 +81,15 @@ export function AuditPage() {
         rowCount={visible.length}
       />
       {visible.length === 0 ? (
-        <p className="text-muted-foreground px-4 py-8 font-mono text-xs">
-          No events.
-        </p>
+        <p className="text-muted-foreground px-4 py-8 text-xs">No events.</p>
       ) : (
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead type="timestamptz">time</TableHead>
-              <TableHead type="text">tool</TableHead>
-              <TableHead type="enum">agent</TableHead>
-              <TableHead type="enum">decision</TableHead>
+              <TableHead>Time</TableHead>
+              <TableHead>Tool</TableHead>
+              <TableHead>Agent</TableHead>
+              <TableHead>Decision</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -142,30 +143,25 @@ function AuditDetail({ event }: { event: AuditEvent }) {
         title={event.tool}
         subtitle={`${event.agentName} · ${formatTimestamp(event.timestamp)}`}
       />
-      <DetailSection title="summary">
+      <DetailSection title="Summary">
         <MetaGrid
           items={[
             {
-              label: 'decision',
-              type: 'enum',
+              label: 'Decision',
               value: <StatusBadge status={event.decision} />,
             },
             {
-              label: 'agent',
-              type: 'enum',
+              label: 'Agent',
               value: <AgentBadge agentId={event.agentId} />,
             },
-            { label: 'agent_id', type: 'text', value: event.agentId },
-            { label: 'event_id', type: 'uuid', value: event.id },
             {
-              label: 'timestamp',
-              type: 'timestamptz',
+              label: 'When',
               value: formatTimestamp(event.timestamp),
             },
           ]}
         />
       </DetailSection>
-      <DetailSection title="decision_chain">
+      <DetailSection title="How it was decided">
         <ol className="border-border divide-border flex flex-col divide-y border">
           {event.decisionChain.map((step) => (
             <li
@@ -173,20 +169,24 @@ function AuditDetail({ event }: { event: AuditEvent }) {
               className="flex items-start justify-between gap-3 px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="font-mono text-[11px] tracking-wide uppercase">
-                  {step.stage}
+                <p className="text-[13px] font-medium">
+                  {humanizeDecisionStage(step.stage)}
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-xs">
                   {step.detail}
                 </p>
               </div>
-              <span className="shrink-0 font-mono text-[11px]">{step.outcome}</span>
+              <span className="text-muted-foreground shrink-0 text-[11px]">
+                {humanizeDecisionOutcome(step.outcome)}
+              </span>
             </li>
           ))}
         </ol>
       </DetailSection>
-      <DetailSection title="args (redacted)">
-        <JsonBlock value={event.argsRedacted} />
+      <DetailSection title="Request details">
+        <CollapsibleDetails summary="Show request data (sensitive fields hidden)">
+          <JsonBlock value={event.argsRedacted} />
+        </CollapsibleDetails>
       </DetailSection>
     </>
   )

@@ -69,29 +69,23 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
 
 function TableHead({
   className,
-  type,
+  type: _type,
   children,
   ...props
-}: React.ComponentProps<"th"> & { type?: string }) {
+}: React.ComponentProps<"th"> & {
+  /** @deprecated Type chips are no longer shown; kept for call-site compat. */
+  type?: string
+}) {
   return (
     <th
       data-slot="table-head"
       className={cn(
-        "border-border text-foreground h-9 border-b border-r px-3 text-left align-middle font-normal whitespace-nowrap last:border-r-0 first:pl-4 last:pr-4 [&:has([role=checkbox])]:pr-0",
+        "border-border text-foreground h-9 border-b border-r px-3 text-left align-middle text-[13px] font-normal whitespace-nowrap last:border-r-0 first:pl-4 last:pr-4 [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
     >
-      {type ? (
-        <span className="flex items-baseline justify-between gap-2 leading-none">
-          <span className="text-[13px]">{children}</span>
-          <span className="text-muted-foreground font-mono text-[10px]">
-            {type}
-          </span>
-        </span>
-      ) : (
-        children
-      )}
+      {children}
     </th>
   )
 }

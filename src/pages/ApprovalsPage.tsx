@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
 
 import {
+  CollapsibleDetails,
   DetailHeader,
   DetailSection,
   JsonBlock,
   MetaGrid,
+  formatExpiresIn,
   formatProb,
   formatRelativeAge,
+  humanizeRuleRef,
 } from '@/components/list/DetailMeta'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
@@ -31,33 +34,28 @@ import { mockApprovals, type ApprovalRequest } from '@/mocks'
 const DETAIL_TITLE_ID = 'approval-detail-title'
 
 const APPROVAL_FILTER_COLUMNS: FilterColumnDef<ApprovalRequest>[] = [
-  { id: 'tool', label: 'tool', type: 'text', getValue: (r) => r.tool },
-  { id: 'agent', label: 'agent', type: 'text', getValue: (r) => r.agentName },
-  {
-    id: 'specialist',
-    label: 'specialist',
-    type: 'text',
-    getValue: (r) => r.specialist,
-  },
-  {
-    id: 'allow_prob',
-    label: 'allow_prob',
-    type: 'float',
-    getValue: (r) => r.allowProb,
-  },
+  { id: 'tool', label: 'Tool', type: 'text', getValue: (r) => r.tool },
+  { id: 'agent', label: 'Agent', type: 'text', getValue: (r) => r.agentName },
   {
     id: 'age',
-    label: 'age',
+    label: 'Waiting',
     type: 'int4',
     getValue: (r) => r.ageSeconds,
   },
   {
     id: 'ttl',
-    label: 'ttl',
+    label: 'Expires',
     type: 'int4',
     getValue: (r) => r.ttlSeconds,
   },
 ]
+
+function humanizeModelChoice(choice: string): string {
+  if (choice.includes('human')) return 'Needs your review'
+  if (choice.includes('allow')) return 'Leans allow'
+  if (choice.includes('deny')) return 'Leans deny'
+  return choice.replaceAll('→', '→').replaceAll('_', ' ')
+}
 
 export function ApprovalsPage() {
   const [approvals, setApprovals] = useState(mockApprovals)
@@ -88,7 +86,7 @@ export function ApprovalsPage() {
           rowCount={visible.length}
         />
         {visible.length === 0 ? (
-          <p className="text-muted-foreground px-4 py-8 font-mono text-xs">
+          <p className="text-muted-foreground px-4 py-8 text-xs">
             {approvals.length === 0
               ? 'Queue clear — no approvals waiting.'
               : 'No rows match this filter.'}
@@ -97,12 +95,10 @@ export function ApprovalsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead type="text">tool</TableHead>
-                <TableHead type="text">agent</TableHead>
-                <TableHead type="text">specialist</TableHead>
-                <TableHead type="float">allow / deny</TableHead>
-                <TableHead type="interval">age</TableHead>
-                <TableHead type="int4">ttl</TableHead>
+                <TableHead>Tool</TableHead>
+                <TableHead>Agent</TableHead>
+                <TableHead>Waiting</TableHead>
+                <TableHead>Expires</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -119,14 +115,8 @@ export function ApprovalsPage() {
                 >
                   <TableCell className="font-medium">{row.tool}</TableCell>
                   <TableCell>{row.agentName}</TableCell>
-                  <TableCell className="font-mono">
-                    {row.specialist}
-                  </TableCell>
-                  <TableCell>
-                    {formatProb(row.allowProb)} / {formatProb(row.denyProb)}
-                  </TableCell>
                   <TableCell>{formatRelativeAge(row.ageSeconds)}</TableCell>
-                  <TableCell>{row.ttlSeconds}s</TableCell>
+                  <TableCell>{formatExpiresIn(row.ttlSeconds)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -175,14 +165,14 @@ function ApprovalDetail({
       <DetailHeader
         titleId={DETAIL_TITLE_ID}
         title={approval.tool}
-        subtitle={`${approval.agentName} · ${approval.specialist}`}
+        subtitle={`${approval.agentName} · waiting ${formatRelativeAge(approval.ageSeconds)}`}
         actions={
           <>
             <Button type="button" variant="outline" onClick={onDeny}>
               Deny
             </Button>
             <Button type="button" variant="secondary" onClick={onAllowTtl}>
-              Allow with TTL
+              Allow temporarily
             </Button>
             <Button type="button" onClick={onAllow}>
               Allow
@@ -193,38 +183,39 @@ function ApprovalDetail({
       <DetailSection title="Request">
         <MetaGrid
           items={[
-            { label: 'agent', type: 'text', value: approval.agentName },
-            { label: 'specialist', type: 'text', value: approval.specialist },
+            { label: 'Agent', value: approval.agentName },
             {
-              label: 'model_choice',
-              type: 'text',
-              value: approval.modelChoice,
+              label: 'AI recommendation',
+              value: humanizeModelChoice(approval.modelChoice),
             },
             {
-              label: 'allow_deny',
-              type: 'float',
-              value: `${formatProb(approval.allowProb)} / ${formatProb(approval.denyProb)}`,
+              label: 'AI confidence',
+              value: `${formatProb(approval.allowProb)} allow · ${formatProb(approval.denyProb)} deny`,
             },
             {
-              label: 'age',
-              type: 'interval',
+              label: 'Waiting',
               value: formatRelativeAge(approval.ageSeconds),
             },
-            { label: 'ttl', type: 'int4', value: `${approval.ttlSeconds}s` },
+            {
+              label: 'Expires in',
+              value: formatExpiresIn(approval.ttlSeconds),
+            },
           ]}
         />
       </DetailSection>
-      <DetailSection title="matched_rules">
+      <DetailSection title="Why it’s here">
         <ul className="border-border divide-border flex flex-col divide-y border">
           {approval.matchedRules.map((rule) => (
-            <li key={rule} className="bg-background px-3 py-2 font-mono text-[12px]">
-              {rule}
+            <li key={rule} className="bg-background px-3 py-2 text-[13px]">
+              {humanizeRuleRef(rule)}
             </li>
           ))}
         </ul>
       </DetailSection>
-      <DetailSection title="Args (redacted)">
-        <JsonBlock value={approval.argsRedacted} />
+      <DetailSection title="Request details">
+        <CollapsibleDetails summary="Show request data (sensitive fields hidden)">
+          <JsonBlock value={approval.argsRedacted} />
+        </CollapsibleDetails>
       </DetailSection>
     </>
   )

@@ -1,10 +1,12 @@
-import { AGENT_IDS } from './agents'
+import { AGENT_IDS, findAgent } from './agents'
+import { mockMcpServers } from './mcp'
 import type {
   CondField,
   CondOp,
   ConditionGroup,
   ConditionLeaf,
   DryRunSample,
+  McpServer,
   PolicyRule,
   RuleFieldDef,
   RuleOutcome,
@@ -145,6 +147,32 @@ export function toolMatchesGlob(tool: string, glob: string): boolean {
     return tool.startsWith(glob.slice(0, -1))
   }
   return tool === glob
+}
+
+/** MCP that declares this tool (demo: first match). */
+export function mcpServerForTool(tool: string): McpServer | undefined {
+  return mockMcpServers.find((s) => s.tools.includes(tool))
+}
+
+/** MCPs attached to the pack's agent — primary browse scope for rules. */
+export function mcpsForAgent(agentId: string): McpServer[] {
+  const agent = findAgent(agentId)
+  if (!agent) return []
+  return mockMcpServers.filter((s) => agent.mcpServerIds.includes(s.id))
+}
+
+/** Tools available when authoring a rule for this agent, grouped by MCP. */
+export function toolGroupsForAgent(
+  agentId: string,
+): Array<{ server: McpServer; tools: string[] }> {
+  return mcpsForAgent(agentId).map((server) => ({
+    server,
+    tools: [...server.tools],
+  }))
+}
+
+export function countRulesForMcp(rules: PolicyRule[], serverId: string): number {
+  return rules.filter((r) => mcpServerForTool(r.tool)?.id === serverId).length
 }
 
 export function fieldsForTool(tool: string): RuleFieldDef[] {
