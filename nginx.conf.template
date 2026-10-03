@@ -40,6 +40,13 @@ server {
         client_max_body_size  20m;
     }
 
+    # Konfiguracja runtime (generowana przy starcie kontenera) nigdy z cache,
+    # inaczej po zmianie parametru w SSM przeglądarki trzymałyby starą wersję 7 dni
+    location = /env.js {
+        add_header Cache-Control "no-store" always;
+        try_files $uri =404;
+    }
+
     # index.html nigdy z cache
     location = /index.html {
         add_header Cache-Control "no-cache" always;
