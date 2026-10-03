@@ -58,7 +58,7 @@ export function AttachMcpAuthFlow({
         </Button>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto">
         <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10">
           {phase === 'prompt' ? (
             <>

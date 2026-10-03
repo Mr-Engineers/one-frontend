@@ -1,18 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   RiArrowLeftLine,
   RiCheckLine,
   RiCloudLine,
+  RiCodeBoxLine,
+  RiDatabase2Line,
   RiExternalLinkLine,
+  RiFileList3Line,
   RiLoader4Line,
   RiServerLine,
+  RiTerminalBoxLine,
 } from '@remixicon/react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { mockDiscoverRemote, type McpServer } from '@/mocks'
+import {
+  HOSTED_SOURCE_OPTIONS,
+  mockBuildHostedServer,
+  mockDiscoverHosted,
+  mockDiscoverRemote,
+  type HostedAuthMethod,
+  type HostedSourceKind,
+  type McpServer,
+  type ProposedHostedTool,
+  type ProposedToolRisk,
+} from '@/mocks'
 
 type WizardStep =
   | 'kind'
@@ -20,7 +34,12 @@ type WizardStep =
   | 'discovering'
   | 'auth'
   | 'review'
-  | 'hosted_soon'
+  | 'hosted_source'
+  | 'hosted_form'
+  | 'hosted_scanning'
+  | 'hosted_tools'
+  | 'hosted_provision'
+  | 'hosted_review'
 
 type DiscoverLog = {
   id: string
@@ -29,6 +48,7 @@ type DiscoverLog = {
 }
 
 type DiscoveryResult = ReturnType<typeof mockDiscoverRemote>
+type HostedDiscovery = ReturnType<typeof mockDiscoverHosted>
 
 const DISCOVER_STEPS = [
   'Resolving endpoint',
@@ -37,6 +57,33 @@ const DISCOVER_STEPS = [
   'Listing tools',
   'Reading capabilities',
 ] as const
+
+const SCAN_STEPS = [
+  'Reachability check',
+  'Authenticating to source',
+  'Fetching schema',
+  'Mapping endpoints → tools',
+  'Risk classification',
+] as const
+
+const PROVISION_STEPS = [
+  'Create workspace',
+  'Deploy adapter',
+  'Sync tool catalog',
+  'Health check',
+  'Ready',
+] as const
+
+const SOURCE_ICONS: Record<
+  HostedSourceKind,
+  typeof RiServerLine
+> = {
+  rest: RiTerminalBoxLine,
+  openapi: RiFileList3Line,
+  database: RiDatabase2Line,
+  package: RiCodeBoxLine,
+  template: RiServerLine,
+}
 
 export function ConnectMcpWizard({
   open,
@@ -56,6 +103,14 @@ export function ConnectMcpWizard({
     'prompt',
   )
 
+  const [hostedSource, setHostedSource] = useState<HostedSourceKind | null>(
+    null,
+  )
+  const [hostedAuth, setHostedAuth] = useState<HostedAuthMethod>('api_key')
+  const [hostedDiscovery, setHostedDiscovery] =
+    useState<HostedDiscovery | null>(null)
+  const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>({})
+
   useEffect(() => {
     if (!open) {
       setStep('kind')
@@ -64,58 +119,51 @@ export function ConnectMcpWizard({
       setLogs([])
       setDiscovery(null)
       setAuthPhase('prompt')
+      setHostedSource(null)
+      setHostedAuth('api_key')
+      setHostedDiscovery(null)
+      setEnabledTools({})
     }
   }, [open])
 
   useEffect(() => {
     if (step !== 'discovering') return
-
-    const seed = DISCOVER_STEPS.map((label, i) => ({
-      id: `d${i}`,
-      label,
-      status: 'pending' as const,
-    }))
-    setLogs(seed)
-
-    let i = 0
-    const timers: number[] = []
-
-    const tick = () => {
-      setLogs((prev) =>
-        prev.map((row, idx) => {
-          if (idx < i) return { ...row, status: 'done' }
-          if (idx === i) return { ...row, status: 'running' }
-          return row
-        }),
-      )
-      i += 1
-      if (i < DISCOVER_STEPS.length) {
-        timers.push(window.setTimeout(tick, 520))
-      } else {
-        timers.push(
-          window.setTimeout(() => {
-            setLogs((prev) => prev.map((row) => ({ ...row, status: 'done' })))
-            const result = mockDiscoverRemote(url, name)
-            setDiscovery(result)
-            timers.push(
-              window.setTimeout(() => {
-                setStep(result.requiresAuth ? 'auth' : 'review')
-              }, 420),
-            )
-          }, 480),
-        )
-      }
-    }
-
-    timers.push(window.setTimeout(tick, 280))
-    return () => timers.forEach((t) => window.clearTimeout(t))
+    return runStagedLogs(DISCOVER_STEPS, setLogs, () => {
+      const result = mockDiscoverRemote(url, name)
+      setDiscovery(result)
+      setStep(result.requiresAuth ? 'auth' : 'review')
+    })
   }, [step, url, name])
+
+  useEffect(() => {
+    if (step !== 'hosted_scanning' || !hostedSource) return
+    return runStagedLogs(SCAN_STEPS, setLogs, () => {
+      const result = mockDiscoverHosted(hostedSource, name, url)
+      setHostedDiscovery(result)
+      const next: Record<string, boolean> = {}
+      for (const t of result.tools) next[t.name] = t.defaultEnabled
+      setEnabledTools(next)
+      setStep('hosted_tools')
+    })
+  }, [step, hostedSource, name, url])
+
+  useEffect(() => {
+    if (step !== 'hosted_provision') return
+    return runStagedLogs(PROVISION_STEPS, setLogs, () => {
+      setStep('hosted_review')
+    })
+  }, [step])
 
   useEffect(() => {
     if (step !== 'auth' || authPhase !== 'redirect') return
     const t = window.setTimeout(() => setAuthPhase('done'), 1400)
     return () => window.clearTimeout(t)
   }, [step, authPhase])
+
+  const selectedCount = useMemo(
+    () => Object.values(enabledTools).filter(Boolean).length,
+    [enabledTools],
+  )
 
   if (!open) return null
 
@@ -124,7 +172,12 @@ export function ConnectMcpWizard({
     setStep('discovering')
   }
 
-  function finishConnect() {
+  function startHostedScan() {
+    if (!url.trim() || !hostedSource) return
+    setStep('hosted_scanning')
+  }
+
+  function finishRemoteConnect() {
     if (!discovery) return
     const now = new Date().toISOString()
     onConnected({
@@ -142,6 +195,49 @@ export function ConnectMcpWizard({
     onClose()
   }
 
+  function finishHostedConnect() {
+    if (!hostedDiscovery) return
+    const tools = hostedDiscovery.tools
+      .filter((t) => enabledTools[t.name])
+      .map((t) => t.name)
+    onConnected(
+      mockBuildHostedServer({
+        name: hostedDiscovery.name,
+        slug: hostedDiscovery.slug,
+        source: hostedDiscovery.source,
+        baseUrl: hostedDiscovery.baseUrl,
+        enabledTools: tools,
+        description: hostedDiscovery.description,
+        requiresAuth:
+          hostedDiscovery.requiresAuth || hostedAuth === 'oauth',
+      }),
+    )
+    onClose()
+  }
+
+  function goBack() {
+    switch (step) {
+      case 'remote_form':
+      case 'hosted_source':
+        setStep('kind')
+        break
+      case 'hosted_form':
+        setStep('hosted_source')
+        break
+      case 'hosted_tools':
+        setStep('hosted_form')
+        break
+      default:
+        break
+    }
+  }
+
+  const backEnabled =
+    step === 'remote_form' ||
+    step === 'hosted_source' ||
+    step === 'hosted_form' ||
+    step === 'hosted_tools'
+
   return (
     <div className="bg-card absolute inset-0 z-20 flex flex-col overflow-hidden">
       <header className="border-border flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4">
@@ -152,14 +248,8 @@ export function ConnectMcpWizard({
               variant="ghost"
               size="icon-sm"
               aria-label="Back"
-              onClick={() => {
-                if (step === 'remote_form') setStep('kind')
-                else if (step === 'hosted_soon') setStep('kind')
-                else if (step === 'auth' || step === 'review') {
-                  /* stay — discovery already done */
-                } else setStep('kind')
-              }}
-              disabled={step === 'discovering' || step === 'auth' || step === 'review'}
+              onClick={goBack}
+              disabled={!backEnabled}
             >
               <RiArrowLeftLine className="size-4" />
             </Button>
@@ -176,23 +266,117 @@ export function ConnectMcpWizard({
         </Button>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto">
         {step === 'kind' ? (
           <KindStep
             onRemote={() => setStep('remote_form')}
-            onHosted={() => setStep('hosted_soon')}
+            onHosted={() => setStep('hosted_source')}
           />
         ) : null}
 
-        {step === 'hosted_soon' ? (
-          <div className="mx-auto flex w-full max-w-lg flex-col gap-4 px-6 py-10">
-            <p className="text-sm font-medium">Hosted MCP</p>
-            <p className="text-muted-foreground text-sm">
-              Self-hosted / Modus-owned MCP provisioning is planned next. Use
-              remote for now.
+        {step === 'hosted_source' ? (
+          <HostedSourceStep
+            selected={hostedSource}
+            onSelect={(id) => {
+              setHostedSource(id)
+              setStep('hosted_form')
+            }}
+          />
+        ) : null}
+
+        {step === 'hosted_form' && hostedSource ? (
+          <HostedFormStep
+            source={hostedSource}
+            name={name}
+            url={url}
+            auth={hostedAuth}
+            onName={setName}
+            onUrl={setUrl}
+            onAuth={setHostedAuth}
+            onSubmit={startHostedScan}
+          />
+        ) : null}
+
+        {step === 'hosted_scanning' ? (
+          <StagedProgress
+            title="Scanning source"
+            subtitle={url}
+            logs={logs}
+          />
+        ) : null}
+
+        {step === 'hosted_tools' && hostedDiscovery ? (
+          <HostedToolsStep
+            discovery={hostedDiscovery}
+            enabled={enabledTools}
+            selectedCount={selectedCount}
+            onToggle={(tool) =>
+              setEnabledTools((prev) => ({
+                ...prev,
+                [tool]: !prev[tool],
+              }))
+            }
+            onToggleRisk={(risk, on) => {
+              setEnabledTools((prev) => {
+                const next = { ...prev }
+                for (const t of hostedDiscovery.tools) {
+                  if (t.risk === risk) next[t.name] = on
+                }
+                return next
+              })
+            }}
+            onContinue={() => setStep('hosted_provision')}
+          />
+        ) : null}
+
+        {step === 'hosted_provision' ? (
+          <StagedProgress
+            title="Provisioning hosted MCP"
+            subtitle={
+              hostedDiscovery
+                ? `modus://hosted/${hostedDiscovery.slug}`
+                : undefined
+            }
+            logs={logs}
+          />
+        ) : null}
+
+        {step === 'hosted_review' && hostedDiscovery ? (
+          <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10">
+            <div className="flex items-center gap-2">
+              <RiCheckLine className="text-primary size-5" />
+              <p className="text-sm font-medium">{hostedDiscovery.name}</p>
+            </div>
+            <p className="text-muted-foreground font-mono text-xs">
+              modus://hosted/{hostedDiscovery.slug}
             </p>
-            <Button type="button" variant="outline" onClick={() => setStep('kind')}>
-              Back to kind
+            <div className="border-border border">
+              <div className="border-border flex items-center justify-between border-b px-3 py-2">
+                <span className="text-muted-foreground font-mono text-[11px]">
+                  enabled tools
+                </span>
+                <span className="font-mono text-[11px]">{selectedCount}</span>
+              </div>
+              <ul className="divide-border divide-y">
+                {hostedDiscovery.tools
+                  .filter((t) => enabledTools[t.name])
+                  .map((tool) => (
+                    <li
+                      key={tool.name}
+                      className="flex items-center justify-between gap-3 px-3 py-2"
+                    >
+                      <span className="font-mono text-[12px]">{tool.name}</span>
+                      <RiskPill risk={tool.risk} />
+                    </li>
+                  ))}
+              </ul>
+            </div>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              Agents never call your API directly. Attach this MCP to an agent,
+              then grant tools via roles.
+            </p>
+            <Button type="button" onClick={finishHostedConnect}>
+              Add to registry
             </Button>
           </div>
         ) : null}
@@ -239,48 +423,7 @@ export function ConnectMcpWizard({
         ) : null}
 
         {step === 'discovering' ? (
-          <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-6 py-10">
-            <div>
-              <p className="text-sm font-medium">Finding MCP</p>
-              <p className="text-muted-foreground mt-1 font-mono text-xs">
-                {url}
-              </p>
-            </div>
-            <ul className="border-border divide-border flex flex-col divide-y border">
-              {logs.map((row, idx) => (
-                <li
-                  key={row.id}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 font-mono text-[12px] transition-opacity duration-300',
-                    row.status === 'pending' ? 'opacity-35' : 'opacity-100',
-                  )}
-                  style={{
-                    transitionDelay:
-                      row.status === 'running' ? `${idx * 20}ms` : undefined,
-                  }}
-                >
-                  <span className="flex size-4 shrink-0 items-center justify-center">
-                    {row.status === 'done' ? (
-                      <RiCheckLine className="text-primary size-3.5" />
-                    ) : row.status === 'running' ? (
-                      <RiLoader4Line className="text-primary size-3.5 animate-spin" />
-                    ) : (
-                      <span className="bg-muted-foreground/40 size-1.5 rounded-full" />
-                    )}
-                  </span>
-                  <span
-                    className={
-                      row.status === 'running'
-                        ? 'text-foreground'
-                        : 'text-muted-foreground'
-                    }
-                  >
-                    {row.label}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <StagedProgress title="Finding MCP" subtitle={url} logs={logs} />
         ) : null}
 
         {step === 'auth' ? (
@@ -363,7 +506,7 @@ export function ConnectMcpWizard({
                 ))}
               </ul>
             </div>
-            <Button type="button" onClick={finishConnect}>
+            <Button type="button" onClick={finishRemoteConnect}>
               Connect MCP
             </Button>
           </div>
@@ -371,6 +514,46 @@ export function ConnectMcpWizard({
       </div>
     </div>
   )
+}
+
+function runStagedLogs(
+  labels: readonly string[],
+  setLogs: (logs: DiscoverLog[] | ((prev: DiscoverLog[]) => DiscoverLog[])) => void,
+  onDone: () => void,
+) {
+  const seed = labels.map((label, i) => ({
+    id: `s${i}`,
+    label,
+    status: 'pending' as const,
+  }))
+  setLogs(seed)
+
+  let i = 0
+  const timers: number[] = []
+
+  const tick = () => {
+    setLogs((prev) =>
+      prev.map((row, idx) => {
+        if (idx < i) return { ...row, status: 'done' }
+        if (idx === i) return { ...row, status: 'running' }
+        return row
+      }),
+    )
+    i += 1
+    if (i < labels.length) {
+      timers.push(window.setTimeout(tick, 480))
+    } else {
+      timers.push(
+        window.setTimeout(() => {
+          setLogs((prev) => prev.map((row) => ({ ...row, status: 'done' })))
+          timers.push(window.setTimeout(onDone, 380))
+        }, 420),
+      )
+    }
+  }
+
+  timers.push(window.setTimeout(tick, 240))
+  return () => timers.forEach((t) => window.clearTimeout(t))
 }
 
 function stepLabel(step: WizardStep) {
@@ -385,8 +568,18 @@ function stepLabel(step: WizardStep) {
       return 'step 4 · authorize'
     case 'review':
       return 'step 5 · review'
-    case 'hosted_soon':
-      return 'hosted · later'
+    case 'hosted_source':
+      return 'step 2 · source'
+    case 'hosted_form':
+      return 'step 3 · connection'
+    case 'hosted_scanning':
+      return 'step 4 · scan'
+    case 'hosted_tools':
+      return 'step 5 · tools'
+    case 'hosted_provision':
+      return 'step 6 · provision'
+    case 'hosted_review':
+      return 'step 7 · review'
   }
 }
 
@@ -398,7 +591,7 @@ function KindStep({
   onHosted: () => void
 }) {
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-3 px-6 py-10 sm:grid-cols-2">
+    <div className="mx-auto grid w-full max-w-3xl shrink-0 gap-3 px-6 py-10 sm:grid-cols-2">
       <button
         type="button"
         onClick={onRemote}
@@ -420,18 +613,344 @@ function KindStep({
         onClick={onHosted}
         className="border-border hover:bg-muted/30 flex flex-col gap-3 border p-5 text-left transition-colors"
       >
-        <RiServerLine className="text-muted-foreground size-5" />
+        <RiServerLine className="text-primary size-5" />
         <div>
-          <p className="text-sm font-medium">Own / hosted</p>
+          <p className="text-sm font-medium">Hosted</p>
           <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-            Provision a Modus-hosted MCP. Flow is stubbed for now — pick this to
-            see the placeholder.
+            Bring an internal API or system into Modus. We host an adapter MCP
+            agents call — your API stays behind it.
           </p>
         </div>
-        <span className="text-muted-foreground font-mono text-[11px]">
-          Later
-        </span>
+        <span className="text-primary font-mono text-[11px]">Continue →</span>
       </button>
+    </div>
+  )
+}
+
+function HostedSourceStep({
+  selected,
+  onSelect,
+}: {
+  selected: HostedSourceKind | null
+  onSelect: (id: HostedSourceKind) => void
+}) {
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-10">
+      <div>
+        <p className="text-sm font-medium">What are you connecting?</p>
+        <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+          Modus will host an MCP that talks to this system. Agents never call
+          your API directly.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {HOSTED_SOURCE_OPTIONS.map((opt) => {
+          const Icon = SOURCE_ICONS[opt.id]
+          const active = selected === opt.id
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => onSelect(opt.id)}
+              className={cn(
+                'border-border flex flex-col gap-2 border p-4 text-left transition-colors',
+                active
+                  ? 'bg-muted/40 border-foreground/30'
+                  : 'hover:bg-muted/30',
+              )}
+            >
+              <Icon className="text-primary size-4" />
+              <div>
+                <p className="text-sm font-medium">{opt.label}</p>
+                <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+                  {opt.blurb}
+                </p>
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function HostedFormStep({
+  source,
+  name,
+  url,
+  auth,
+  onName,
+  onUrl,
+  onAuth,
+  onSubmit,
+}: {
+  source: HostedSourceKind
+  name: string
+  url: string
+  auth: HostedAuthMethod
+  onName: (v: string) => void
+  onUrl: (v: string) => void
+  onAuth: (v: HostedAuthMethod) => void
+  onSubmit: () => void
+}) {
+  const option = HOSTED_SOURCE_OPTIONS.find((o) => o.id === source)!
+  const authOptions: { id: HostedAuthMethod; label: string }[] = [
+    { id: 'api_key', label: 'API key' },
+    { id: 'oauth', label: 'OAuth' },
+    { id: 'mtls', label: 'mTLS' },
+    { id: 'none', label: 'None' },
+  ]
+
+  return (
+    <form
+      className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit()
+      }}
+    >
+      <div>
+        <p className="text-sm font-medium">{option.label}</p>
+        <p className="text-muted-foreground mt-1 text-xs">
+          How Modus reaches your system (mock — no real network call).
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-muted-foreground font-mono text-[11px]">
+          name
+        </Label>
+        <Input
+          value={name}
+          onChange={(e) => onName(e.target.value)}
+          placeholder="Internal Orders API"
+          autoFocus
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-muted-foreground font-mono text-[11px]">
+          {source === 'package' ? 'image / package' : 'base url'}
+        </Label>
+        <Input
+          value={url}
+          onChange={(e) => onUrl(e.target.value)}
+          placeholder={option.urlPlaceholder}
+          required
+          className="font-mono"
+        />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-muted-foreground font-mono text-[11px]">
+          auth to source
+        </Label>
+        <div className="flex flex-wrap gap-1.5">
+          {authOptions.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => onAuth(opt.id)}
+              className={cn(
+                'h-8 border px-2.5 font-mono text-[11px] transition-colors',
+                auth === opt.id
+                  ? 'border-foreground/40 bg-secondary text-foreground'
+                  : 'border-border text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-muted-foreground text-xs">
+          Stored in the gateway. Private networks show “waiting for connector”
+          in a real deploy.
+        </p>
+      </div>
+
+      <Button type="submit" disabled={!url.trim()}>
+        Scan & propose tools
+      </Button>
+    </form>
+  )
+}
+
+function HostedToolsStep({
+  discovery,
+  enabled,
+  selectedCount,
+  onToggle,
+  onToggleRisk,
+  onContinue,
+}: {
+  discovery: HostedDiscovery
+  enabled: Record<string, boolean>
+  selectedCount: number
+  onToggle: (tool: string) => void
+  onToggleRisk: (risk: ProposedToolRisk, on: boolean) => void
+  onContinue: () => void
+}) {
+  return (
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10">
+      <div>
+        <p className="text-sm font-medium">What can agents do?</p>
+        <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+          Deny by default for writes. Enable only what this MCP should expose —
+          roles can narrow further later.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {(
+          [
+            ['read', 'Enable reads'],
+            ['write', 'Disable writes'],
+            ['sensitive', 'Disable sensitive'],
+          ] as const
+        ).map(([risk, label]) => (
+          <button
+            key={risk}
+            type="button"
+            onClick={() => onToggleRisk(risk, risk === 'read')}
+            className="border-border text-muted-foreground hover:text-foreground h-7 border px-2 font-mono text-[11px] transition-colors"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="border-border border">
+        <div className="border-border flex items-center justify-between border-b px-3 py-2">
+          <span className="text-muted-foreground font-mono text-[11px]">
+            proposed tools
+          </span>
+          <span className="font-mono text-[11px]">
+            {selectedCount} / {discovery.tools.length}
+          </span>
+        </div>
+        <ul className="divide-border max-h-[min(50vh,22rem)] divide-y overflow-y-auto">
+          {discovery.tools.map((tool) => (
+            <ToolToggleRow
+              key={tool.name}
+              tool={tool}
+              checked={!!enabled[tool.name]}
+              onToggle={() => onToggle(tool.name)}
+            />
+          ))}
+        </ul>
+      </div>
+
+      <Button
+        type="button"
+        disabled={selectedCount === 0}
+        onClick={onContinue}
+      >
+        Provision with {selectedCount} tool{selectedCount === 1 ? '' : 's'}
+      </Button>
+    </div>
+  )
+}
+
+function ToolToggleRow({
+  tool,
+  checked,
+  onToggle,
+}: {
+  tool: ProposedHostedTool
+  checked: boolean
+  onToggle: () => void
+}) {
+  return (
+    <li>
+      <label className="hover:bg-muted/20 flex cursor-pointer items-start gap-3 px-3 py-2.5 transition-colors">
+        <input
+          type="checkbox"
+          className="border-border text-primary mt-0.5 size-3.5 accent-current"
+          checked={checked}
+          onChange={onToggle}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2">
+            <span className="font-mono text-[12px]">{tool.name}</span>
+            <RiskPill risk={tool.risk} />
+          </span>
+          <span className="text-muted-foreground mt-0.5 block text-xs">
+            {tool.description}
+          </span>
+        </span>
+      </label>
+    </li>
+  )
+}
+
+function RiskPill({ risk }: { risk: ProposedToolRisk }) {
+  return (
+    <span
+      className={cn(
+        'shrink-0 font-mono text-[10px] uppercase tracking-wide',
+        risk === 'read' && 'text-muted-foreground',
+        risk === 'write' && 'text-foreground',
+        risk === 'sensitive' && 'text-destructive',
+      )}
+    >
+      {risk}
+    </span>
+  )
+}
+
+function StagedProgress({
+  title,
+  subtitle,
+  logs,
+}: {
+  title: string
+  subtitle?: string
+  logs: DiscoverLog[]
+}) {
+  return (
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-6 py-10">
+      <div>
+        <p className="text-sm font-medium">{title}</p>
+        {subtitle ? (
+          <p className="text-muted-foreground mt-1 font-mono text-xs">
+            {subtitle}
+          </p>
+        ) : null}
+      </div>
+      <ul className="border-border divide-border flex flex-col divide-y border">
+        {logs.map((row, idx) => (
+          <li
+            key={row.id}
+            className={cn(
+              'flex items-center gap-3 px-3 py-2.5 font-mono text-[12px] transition-opacity duration-300',
+              row.status === 'pending' ? 'opacity-35' : 'opacity-100',
+            )}
+            style={{
+              transitionDelay:
+                row.status === 'running' ? `${idx * 20}ms` : undefined,
+            }}
+          >
+            <span className="flex size-4 shrink-0 items-center justify-center">
+              {row.status === 'done' ? (
+                <RiCheckLine className="text-primary size-3.5" />
+              ) : row.status === 'running' ? (
+                <RiLoader4Line className="text-primary size-3.5 animate-spin" />
+              ) : (
+                <span className="bg-muted-foreground/40 size-1.5 rounded-full" />
+              )}
+            </span>
+            <span
+              className={
+                row.status === 'running'
+                  ? 'text-foreground'
+                  : 'text-muted-foreground'
+              }
+            >
+              {row.label}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

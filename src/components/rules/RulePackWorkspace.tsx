@@ -11,6 +11,7 @@ import {
   JsonBlock,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
+import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { RuleEditorPanel } from '@/components/rules/RuleEditorPanel'
 import { RuleOutcomeBadge } from '@/components/rules/RuleOutcomeBadge'
 import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
@@ -23,6 +24,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  applyTableSort,
+  nextSortState,
+  type SortColumnDef,
+  type TableSortState,
+} from '@/lib/table-sort'
 import { cn } from '@/lib/utils'
 import {
   activeVersionOf,
@@ -37,6 +44,17 @@ import {
 } from '@/mocks'
 
 type Editing = PolicyRule | 'new' | null
+
+const RULE_SORT_COLUMNS: SortColumnDef<PolicyRule>[] = [
+  { id: 'name', type: 'text', getValue: (r) => r.name },
+  {
+    id: 'mcp',
+    type: 'text',
+    getValue: (r) => mcpServerForTool(r.tool)?.name ?? '',
+  },
+  { id: 'tool', type: 'text', getValue: (r) => r.tool },
+  { id: 'then', type: 'text', getValue: (r) => r.then },
+]
 
 export function RulePackWorkspace({
   pack,
@@ -55,15 +73,19 @@ export function RulePackWorkspace({
   const agentMcps = useMemo(() => mcpsForAgent(pack.agentId), [pack.agentId])
 
   const [mcpFilter, setMcpFilter] = useState<string | 'all'>('all')
+  const [sort, setSort] = useState<TableSortState>(null)
   const [editing, setEditing] = useState<Editing>(
     focusEditor || rules.length === 0 ? 'new' : null,
   )
   const [dryRunId, setDryRunId] = useState<string | null>(null)
 
   const filteredRules = useMemo(() => {
-    if (mcpFilter === 'all') return rules
-    return rules.filter((r) => mcpServerForTool(r.tool)?.id === mcpFilter)
-  }, [mcpFilter, rules])
+    const scoped =
+      mcpFilter === 'all'
+        ? rules
+        : rules.filter((r) => mcpServerForTool(r.tool)?.id === mcpFilter)
+    return applyTableSort(scoped, RULE_SORT_COLUMNS, sort)
+  }, [mcpFilter, rules, sort])
 
   const samples = useMemo(() => {
     const all = mockDryRunSamples[pack.id] ?? []
@@ -245,10 +267,30 @@ export function RulePackWorkspace({
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10 px-0 text-center first:pl-0" />
-                    <TableHead>Name</TableHead>
-                    <TableHead>MCP</TableHead>
-                    <TableHead>Tool</TableHead>
-                    <TableHead>Then</TableHead>
+                    <SortableTableHead
+                      columnId="name"
+                      label="Name"
+                      sort={sort}
+                      onSort={(id) => setSort((s) => nextSortState(s, id))}
+                    />
+                    <SortableTableHead
+                      columnId="mcp"
+                      label="MCP"
+                      sort={sort}
+                      onSort={(id) => setSort((s) => nextSortState(s, id))}
+                    />
+                    <SortableTableHead
+                      columnId="tool"
+                      label="Tool"
+                      sort={sort}
+                      onSort={(id) => setSort((s) => nextSortState(s, id))}
+                    />
+                    <SortableTableHead
+                      columnId="then"
+                      label="Then"
+                      sort={sort}
+                      onSort={(id) => setSort((s) => nextSortState(s, id))}
+                    />
                   </TableRow>
                 </TableHeader>
                 <TableBody>

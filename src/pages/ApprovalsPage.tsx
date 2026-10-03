@@ -11,6 +11,7 @@ import {
   formatRelativeAge,
   humanizeRuleRef,
 } from '@/components/list/DetailMeta'
+import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
 import { Button } from '@/components/ui/button'
@@ -18,7 +19,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -28,6 +28,11 @@ import {
   type FilterColumnDef,
   type FilterRule,
 } from '@/lib/table-filter'
+import {
+  applyTableSort,
+  nextSortState,
+  type TableSortState,
+} from '@/lib/table-sort'
 import { routes } from '@/lib/routes'
 import { mockApprovals, type ApprovalRequest } from '@/mocks'
 
@@ -60,9 +65,15 @@ function humanizeModelChoice(choice: string): string {
 export function ApprovalsPage() {
   const [approvals, setApprovals] = useState(mockApprovals)
   const [filters, setFilters] = useState<FilterRule[]>([])
+  const [sort, setSort] = useState<TableSortState>(null)
   const visible = useMemo(
-    () => applyTableFilter(approvals, APPROVAL_FILTER_COLUMNS, filters),
-    [approvals, filters],
+    () =>
+      applyTableSort(
+        applyTableFilter(approvals, APPROVAL_FILTER_COLUMNS, filters),
+        APPROVAL_FILTER_COLUMNS,
+        sort,
+      ),
+    [approvals, filters, sort],
   )
   const { squash, openRow, closeRow } = useListDetailSquash<ApprovalRequest>({
     listPath: routes.approvals,
@@ -95,10 +106,30 @@ export function ApprovalsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Tool</TableHead>
-                <TableHead>Agent</TableHead>
-                <TableHead>Waiting</TableHead>
-                <TableHead>Expires</TableHead>
+                <SortableTableHead
+                  columnId="tool"
+                  label="Tool"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="agent"
+                  label="Agent"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="age"
+                  label="Waiting"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="ttl"
+                  label="Expires"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -124,7 +155,14 @@ export function ApprovalsPage() {
         )}
       </>
     ),
-    [approvals.length, filters, openRow, squash.overlay?.payload.id, visible],
+    [
+      approvals.length,
+      filters,
+      openRow,
+      sort,
+      squash.overlay?.payload.id,
+      visible,
+    ],
   )
 
   return (

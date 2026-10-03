@@ -1,7 +1,8 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { RiMailSendLine } from '@remixicon/react'
 
 import { formatTimestamp } from '@/components/list/DetailMeta'
+import { SortableTableHead } from '@/components/list/SortableTableHead'
 import {
   OperatorRoleBadge,
   OperatorStatusBadge,
@@ -17,6 +18,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  applyTableSort,
+  nextSortState,
+  type SortColumnDef,
+  type TableSortState,
+} from '@/lib/table-sort'
 import { cn } from '@/lib/utils'
 import {
   createOperatorId,
@@ -38,13 +45,28 @@ const TTL_OPTIONS = [
 
 const RETENTION_OPTIONS = [30, 90, 180, 365] as const
 
+const OPERATOR_SORT_COLUMNS: SortColumnDef<Operator>[] = [
+  { id: 'name', type: 'text', getValue: (r) => r.name },
+  { id: 'email', type: 'text', getValue: (r) => r.email },
+  { id: 'role', type: 'text', getValue: (r) => r.role },
+  { id: 'status', type: 'text', getValue: (r) => r.status },
+  { id: 'invited', type: 'timestamptz', getValue: (r) => r.invitedAt },
+  { id: 'last_active', type: 'timestamptz', getValue: (r) => r.lastActiveAt },
+]
+
 export function SettingsPage() {
   const [workspace, setWorkspace] = useState(mockWorkspaceSettings)
   const [operators, setOperators] = useState(mockOperators)
+  const [sort, setSort] = useState<TableSortState>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<OperatorRole>('operator')
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
+
+  const visibleOperators = useMemo(
+    () => applyTableSort(operators, OPERATOR_SORT_COLUMNS, sort),
+    [operators, sort],
+  )
 
   function patchWorkspace(patch: Partial<WorkspaceSettings>) {
     setWorkspace((prev) => ({ ...prev, ...patch }))
@@ -249,17 +271,47 @@ export function SettingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Invited</TableHead>
-                <TableHead>Last active</TableHead>
+                <SortableTableHead
+                  columnId="name"
+                  label="Name"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="email"
+                  label="Email"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="role"
+                  label="Role"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="status"
+                  label="Status"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="invited"
+                  label="Invited"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="last_active"
+                  label="Last active"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {operators.map((op) => (
+              {visibleOperators.map((op) => (
                 <TableRow key={op.id}>
                   <TableCell className="font-medium">{op.name}</TableCell>
                   <TableCell className="font-mono">{op.email}</TableCell>

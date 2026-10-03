@@ -7,6 +7,7 @@ import {
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
+import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { SquashListArea } from '@/components/squash-reveal'
 import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -16,13 +17,18 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
 import { BadgeTheme, ThemedBadge } from '@/components/ui/themed-badge'
 import { useListDetailSquash } from '@/hooks/useListDetailSquash'
 import { routes } from '@/lib/routes'
+import {
+  applyTableSort,
+  nextSortState,
+  type SortColumnDef,
+  type TableSortState,
+} from '@/lib/table-sort'
 import { cn } from '@/lib/utils'
 import {
   mockRateLimitHits,
@@ -65,6 +71,34 @@ const PRESSURE_THEME: Record<
   tight: { theme: BadgeTheme.Yellow, label: 'Tight' },
   exhausted: { theme: BadgeTheme.Red, label: 'Exhausted' },
 }
+
+const PRESSURE_ORDER = { ok: 0, tight: 1, exhausted: 2 } as const
+
+const QUOTA_SORT_COLUMNS: SortColumnDef<RateLimitQuota>[] = [
+  { id: 'name', type: 'text', getValue: (r) => r.name },
+  { id: 'scope', type: 'text', getValue: (r) => r.scope },
+  { id: 'target', type: 'text', getValue: (r) => r.targetLabel },
+  { id: 'window', type: 'text', getValue: (r) => r.window },
+  {
+    id: 'usage',
+    type: 'float',
+    getValue: (r) => (r.cap > 0 ? r.used / r.cap : 0),
+  },
+  {
+    id: 'status',
+    type: 'int4',
+    getValue: (r) => (r.enabled ? PRESSURE_ORDER[quotaPressure(r)] : -1),
+  },
+]
+
+const HIT_SORT_COLUMNS: SortColumnDef<RateLimitHit>[] = [
+  { id: 'time', type: 'timestamptz', getValue: (r) => r.timestamp },
+  { id: 'agent', type: 'text', getValue: (r) => r.agentName },
+  { id: 'tool', type: 'text', getValue: (r) => r.tool },
+  { id: 'limit', type: 'text', getValue: (r) => r.quotaName },
+  { id: 'retry', type: 'int4', getValue: (r) => r.retryAfterSeconds },
+  { id: 'decision', type: 'text', getValue: () => 'rate_limited' },
+]
 
 function ScopeBadge({ scope }: { scope: QuotaScope }) {
   return (
@@ -117,11 +151,17 @@ function UsageBar({ quota }: { quota: RateLimitQuota }) {
 export function RateLimitsPage() {
   const [quotas, setQuotas] = useState(mockRateLimitQuotas)
   const [hits] = useState(mockRateLimitHits)
+  const [sort, setSort] = useState<TableSortState>(null)
+
+  const sortedQuotas = useMemo(
+    () => applyTableSort(quotas, QUOTA_SORT_COLUMNS, sort),
+    [quotas, sort],
+  )
 
   const { squash, openRow, closeRow } = useListDetailSquash<RateLimitQuota>({
     listPath: routes.rateLimits,
     paramKey: 'quotaId',
-    rows: quotas,
+    rows: sortedQuotas,
     detailPath: routes.rateLimitDetail,
   })
 
@@ -174,16 +214,46 @@ export function RateLimitsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Applies to</TableHead>
-              <TableHead>Target</TableHead>
-              <TableHead>Window</TableHead>
-              <TableHead>Usage</TableHead>
-              <TableHead>Status</TableHead>
+              <SortableTableHead
+                columnId="name"
+                label="Name"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="scope"
+                label="Applies to"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="target"
+                label="Target"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="window"
+                label="Window"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="usage"
+                label="Usage"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="status"
+                label="Status"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {quotas.map((quota) => (
+            {sortedQuotas.map((quota) => (
               <TableRow
                 key={quota.id}
                 className="cursor-pointer"
@@ -222,7 +292,8 @@ export function RateLimitsPage() {
       metrics.overrides,
       metrics.tight,
       openRow,
-      quotas,
+      sort,
+      sortedQuotas,
       squash.overlay?.payload.id,
     ],
   )
@@ -286,6 +357,12 @@ function RecentHits({
   quotas: RateLimitQuota[]
   onOpenQuota: (quota: RateLimitQuota) => void
 }) {
+  const [sort, setSort] = useState<TableSortState>(null)
+  const visible = useMemo(
+    () => applyTableSort(hits, HIT_SORT_COLUMNS, sort),
+    [hits, sort],
+  )
+
   return (
     <section className="border-border border-t">
       <div className="border-border flex items-start justify-between gap-3 border-b px-4 py-3">
@@ -311,16 +388,46 @@ function RecentHits({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Time</TableHead>
-              <TableHead>Agent</TableHead>
-              <TableHead>Tool</TableHead>
-              <TableHead>Limit</TableHead>
-              <TableHead>Try again in</TableHead>
-              <TableHead>Decision</TableHead>
+              <SortableTableHead
+                columnId="time"
+                label="Time"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="agent"
+                label="Agent"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="tool"
+                label="Tool"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="limit"
+                label="Limit"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="retry"
+                label="Try again in"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="decision"
+                label="Decision"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {hits.map((hit) => {
+            {visible.map((hit) => {
               const quota = quotas.find((q) => q.id === hit.quotaId)
               return (
                 <TableRow key={hit.id}>

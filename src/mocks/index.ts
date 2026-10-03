@@ -9,7 +9,20 @@
 export { AGENT_IDS, findAgent, mockAgents } from './agents'
 export { mockApprovals } from './approvals'
 export { mockAuditEvents } from './audit'
-export { mockDiscoverRemote, mockMcpServers } from './mcp'
+export {
+  HOSTED_SOURCE_OPTIONS,
+  mockBuildHostedServer,
+  mockDiscoverHosted,
+  mockDiscoverRemote,
+  mockMcpServers,
+} from './mcp'
+export type {
+  HostedAuthMethod,
+  HostedSourceKind,
+  HostedSourceOption,
+  ProposedHostedTool,
+  ProposedToolRisk,
+} from './mcp'
 export { getOverviewMetrics } from './overview'
 export {
   mockRateLimitHits,

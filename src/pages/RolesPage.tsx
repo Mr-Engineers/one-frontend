@@ -6,6 +6,7 @@ import {
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
+import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
 import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
@@ -14,7 +15,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -24,6 +24,11 @@ import {
   type FilterColumnDef,
   type FilterRule,
 } from '@/lib/table-filter'
+import {
+  applyTableSort,
+  nextSortState,
+  type TableSortState,
+} from '@/lib/table-sort'
 import { routes } from '@/lib/routes'
 import {
   countGrantedTools,
@@ -68,9 +73,15 @@ const ROLE_FILTER_COLUMNS: FilterColumnDef<Role>[] = [
 export function RolesPage() {
   const [roles, setRoles] = useState(mockRoles)
   const [filters, setFilters] = useState<FilterRule[]>([])
+  const [sort, setSort] = useState<TableSortState>(null)
   const visible = useMemo(
-    () => applyTableFilter(roles, ROLE_FILTER_COLUMNS, filters),
-    [roles, filters],
+    () =>
+      applyTableSort(
+        applyTableFilter(roles, ROLE_FILTER_COLUMNS, filters),
+        ROLE_FILTER_COLUMNS,
+        sort,
+      ),
+    [roles, filters, sort],
   )
   const { squash, openRow, closeRow } = useListDetailSquash<Role>({
     listPath: routes.roles,
@@ -100,11 +111,36 @@ export function RolesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Assigned</TableHead>
-                <TableHead>Tools allowed</TableHead>
-                <TableHead>Updated</TableHead>
+                <SortableTableHead
+                  columnId="name"
+                  label="Name"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="status"
+                  label="Status"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="agents"
+                  label="Assigned"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="grants"
+                  label="Tools allowed"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="updated"
+                  label="Updated"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -143,7 +179,7 @@ export function RolesPage() {
         )}
       </>
     ),
-    [filters, openRow, squash.overlay?.payload.id, visible],
+    [filters, openRow, sort, squash.overlay?.payload.id, visible],
   )
 
   return (

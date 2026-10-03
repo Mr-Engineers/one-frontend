@@ -7,6 +7,7 @@ import {
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
+import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { AttachMcpAuthFlow } from '@/components/mcp/AttachMcpAuthFlow'
 import { SquashListArea } from '@/components/squash-reveal'
@@ -22,7 +23,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -32,6 +32,11 @@ import {
   type FilterColumnDef,
   type FilterRule,
 } from '@/lib/table-filter'
+import {
+  applyTableSort,
+  nextSortState,
+  type TableSortState,
+} from '@/lib/table-sort'
 import { routes } from '@/lib/routes'
 import { mockAgents, mockMcpServers, type Agent, type McpServer } from '@/mocks'
 
@@ -64,13 +69,19 @@ const AGENT_FILTER_COLUMNS: FilterColumnDef<Agent>[] = [
 export function AgentsPage() {
   const [agents, setAgents] = useState(mockAgents)
   const [filters, setFilters] = useState<FilterRule[]>([])
+  const [sort, setSort] = useState<TableSortState>(null)
   const [attachTarget, setAttachTarget] = useState<{
     agent: Agent
     server: McpServer
   } | null>(null)
   const visible = useMemo(
-    () => applyTableFilter(agents, AGENT_FILTER_COLUMNS, filters),
-    [agents, filters],
+    () =>
+      applyTableSort(
+        applyTableFilter(agents, AGENT_FILTER_COLUMNS, filters),
+        AGENT_FILTER_COLUMNS,
+        sort,
+      ),
+    [agents, filters, sort],
   )
   const { squash, openRow, closeRow } = useListDetailSquash<Agent>({
     listPath: routes.agents,
@@ -103,11 +114,36 @@ export function AgentsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>API key</TableHead>
-              <TableHead>Last seen</TableHead>
+              <SortableTableHead
+                columnId="name"
+                label="Name"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="role"
+                label="Role"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="status"
+                label="Status"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="api_key"
+                label="API key"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="last_seen"
+                label="Last seen"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -137,7 +173,7 @@ export function AgentsPage() {
         </Table>
       </>
     ),
-    [filters, openRow, squash.overlay?.payload.id, visible],
+    [filters, openRow, sort, squash.overlay?.payload.id, visible],
   )
 
   return (

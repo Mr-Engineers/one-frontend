@@ -76,7 +76,7 @@ export function McpRegistryPage() {
         onClose={() => setWizardOpen(false)}
         onConnected={(server) => {
           setServers((prev) => [server, ...prev])
-          setKind('all')
+          setKind(server.kind)
         }}
       />
     </div>
@@ -85,7 +85,7 @@ export function McpRegistryPage() {
 
 function McpServerCard({ server }: { server: McpServer }) {
   return (
-    <article className="border-border bg-background flex flex-col border px-4 py-3">
+    <article className="border-border bg-background flex flex-col gap-2 border px-4 py-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-medium">{server.name}</h2>
@@ -95,6 +95,14 @@ function McpServerCard({ server }: { server: McpServer }) {
         </div>
         <McpHealthBadge health={server.health} />
       </div>
+      <p className="text-muted-foreground truncate font-mono text-[11px]">
+        {server.url}
+      </p>
+      {server.description ? (
+        <p className="text-muted-foreground line-clamp-2 text-xs leading-relaxed">
+          {server.description}
+        </p>
+      ) : null}
     </article>
   )
 }

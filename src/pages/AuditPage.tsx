@@ -10,6 +10,7 @@ import {
   humanizeDecisionOutcome,
   humanizeDecisionStage,
 } from '@/components/list/DetailMeta'
+import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
 import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
@@ -17,7 +18,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
@@ -27,6 +27,11 @@ import {
   type FilterColumnDef,
   type FilterRule,
 } from '@/lib/table-filter'
+import {
+  applyTableSort,
+  nextSortState,
+  type TableSortState,
+} from '@/lib/table-sort'
 import { routes } from '@/lib/routes'
 import { mockAuditEvents, type AuditEvent } from '@/mocks'
 
@@ -59,10 +64,16 @@ const AUDIT_FILTER_COLUMNS: FilterColumnDef<AuditEvent>[] = [
 export function AuditPage() {
   const events = mockAuditEvents
   const [filters, setFilters] = useState<FilterRule[]>([])
+  const [sort, setSort] = useState<TableSortState>(null)
 
   const visible = useMemo(
-    () => applyTableFilter(events, AUDIT_FILTER_COLUMNS, filters),
-    [events, filters],
+    () =>
+      applyTableSort(
+        applyTableFilter(events, AUDIT_FILTER_COLUMNS, filters),
+        AUDIT_FILTER_COLUMNS,
+        sort,
+      ),
+    [events, filters, sort],
   )
 
   const { squash, openRow, closeRow } = useListDetailSquash<AuditEvent>({
@@ -86,10 +97,30 @@ export function AuditPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Time</TableHead>
-              <TableHead>Tool</TableHead>
-              <TableHead>Agent</TableHead>
-              <TableHead>Decision</TableHead>
+              <SortableTableHead
+                columnId="time"
+                label="Time"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="tool"
+                label="Tool"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="agent"
+                label="Agent"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
+              <SortableTableHead
+                columnId="decision"
+                label="Decision"
+                sort={sort}
+                onSort={(id) => setSort((s) => nextSortState(s, id))}
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
