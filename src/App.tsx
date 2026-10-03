@@ -1,65 +1,66 @@
-import { useState } from 'react'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
-import { getHealth } from '@/api'
-import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { AppShell } from '@/layouts/AppShell'
+import { routes } from '@/lib/routes'
+import { AgentsPage } from '@/pages/AgentsPage'
+import { ApprovalsPage } from '@/pages/ApprovalsPage'
+import { AuditPage } from '@/pages/AuditPage'
+import { McpRegistryPage } from '@/pages/McpRegistryPage'
+import { NotFoundPage } from '@/pages/NotFoundPage'
+import { OverviewPage } from '@/pages/OverviewPage'
+import { ProfilePage } from '@/pages/ProfilePage'
+import { RateLimitsPage } from '@/pages/RateLimitsPage'
+import { RolesPage } from '@/pages/RolesPage'
+import { RulesPage } from '@/pages/RulesPage'
+import { SettingsPage } from '@/pages/SettingsPage'
+import { SpecialistsPage } from '@/pages/SpecialistsPage'
+import { SimulatorPage } from '@/pages/SimulatorPage'
 
-type HealthState =
-  | { status: 'idle' }
-  | { status: 'loading' }
-  | { status: 'ok'; payload: unknown }
-  | { status: 'error'; message: string }
-
-function App() {
-  const [health, setHealth] = useState<HealthState>({ status: 'idle' })
-
-  async function checkBackend() {
-    setHealth({ status: 'loading' })
-    try {
-      const data = await getHealth()
-      setHealth({ status: 'ok', payload: data })
-    } catch (err) {
-      setHealth({
-        status: 'error',
-        message: err instanceof Error ? err.message : 'Unknown error',
-      })
-    }
-  }
-
+export default function App() {
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>one-frontend</CardTitle>
-          <CardDescription>
-            Vite + React + shadcn, wired to the Python API via{' '}
-            <code className="text-foreground">/api</code>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <Button onClick={checkBackend} disabled={health.status === 'loading'}>
-            {health.status === 'loading' ? 'Checking…' : 'Check /api/health'}
-          </Button>
-
-          {health.status === 'ok' && (
-            <pre className="overflow-x-auto rounded-md bg-muted p-3 text-left text-sm">
-              {JSON.stringify(health.payload, null, 2)}
-            </pre>
-          )}
-
-          {health.status === 'error' && (
-            <p className="text-sm text-destructive">{health.message}</p>
-          )}
-        </CardContent>
-      </Card>
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<OverviewPage />} />
+          <Route path={routes.approvals} element={<ApprovalsPage />} />
+          <Route
+            path={`${routes.approvals}/:approvalId`}
+            element={<ApprovalsPage />}
+          />
+          <Route path={routes.roles} element={<RolesPage />} />
+          <Route
+            path={`${routes.roles}/:roleId`}
+            element={<RolesPage />}
+          />
+          <Route path={routes.rules} element={<RulesPage />} />
+          <Route
+            path={`${routes.rules}/:rulePackId`}
+            element={<RulesPage />}
+          />
+          <Route path={routes.agents} element={<AgentsPage />} />
+          <Route
+            path={`${routes.agents}/:agentId`}
+            element={<AgentsPage />}
+          />
+          <Route path={routes.mcp} element={<McpRegistryPage />} />
+          <Route path={routes.audit} element={<AuditPage />} />
+          <Route path={`${routes.audit}/:eventId`} element={<AuditPage />} />
+          <Route path={routes.rateLimits} element={<RateLimitsPage />} />
+          <Route
+            path={`${routes.rateLimits}/:quotaId`}
+            element={<RateLimitsPage />}
+          />
+          <Route path={routes.specialists} element={<SpecialistsPage />} />
+          <Route
+            path={`${routes.specialists}/:specialistId`}
+            element={<SpecialistsPage />}
+          />
+          <Route path={routes.simulator} element={<SimulatorPage />} />
+          <Route path={routes.settings} element={<SettingsPage />} />
+          <Route path={routes.profile} element={<ProfilePage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
-
-export default App
