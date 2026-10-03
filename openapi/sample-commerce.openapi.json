@@ -1,0 +1,367 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Acme Commerce API",
+    "version": "2.1.0",
+    "description": "Internal purchasing API for agents: catalogs, carts, orders, and invoices."
+  },
+  "servers": [
+    {
+      "url": "https://api.acme-internal.example/v2",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    { "name": "Catalog", "description": "Product search and detail" },
+    { "name": "Cart", "description": "Shopping cart mutations" },
+    { "name": "Orders", "description": "Purchase orders" },
+    { "name": "Invoices", "description": "Billing and payments" },
+    { "name": "Vendors", "description": "Approved suppliers" }
+  ],
+  "paths": {
+    "/products": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "searchProducts",
+        "summary": "Search products",
+        "description": "Full-text and filter search across the approved catalog. Prefer sku or vendor_id when known.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Free-text query"
+          },
+          {
+            "name": "vendor_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filter by vendor"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "maximum": 100, "default": 20 },
+            "description": "Page size"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Product page" }
+        }
+      }
+    },
+    "/products/{sku}": {
+      "get": {
+        "tags": ["Catalog"],
+        "operationId": "getProduct",
+        "summary": "Get product",
+        "description": "Return product detail, price, and stock for a SKU.",
+        "parameters": [
+          {
+            "name": "sku",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Product SKU"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Product detail" },
+          "404": { "description": "Unknown SKU" }
+        }
+      }
+    },
+    "/carts/{cart_id}": {
+      "get": {
+        "tags": ["Cart"],
+        "operationId": "getCart",
+        "summary": "Get cart",
+        "description": "Fetch the current cart contents and totals.",
+        "parameters": [
+          {
+            "name": "cart_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Cart" }
+        }
+      }
+    },
+    "/carts/{cart_id}/items": {
+      "post": {
+        "tags": ["Cart"],
+        "operationId": "addCartItem",
+        "summary": "Add cart item",
+        "description": "Add a SKU and quantity to the cart. Does not place an order.",
+        "parameters": [
+          {
+            "name": "cart_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Line item to add",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sku", "quantity"],
+                "properties": {
+                  "sku": { "type": "string" },
+                  "quantity": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated cart" },
+          "409": { "description": "Insufficient stock" }
+        }
+      }
+    },
+    "/carts/{cart_id}/checkout": {
+      "post": {
+        "tags": ["Cart"],
+        "operationId": "checkoutCart",
+        "summary": "Checkout cart",
+        "description": "Convert the cart into a draft purchase order. Money is not moved until invoice payment.",
+        "parameters": [
+          {
+            "name": "cart_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "po_number": { "type": "string" },
+                  "notes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created order" },
+          "400": { "description": "Empty or invalid cart" }
+        }
+      }
+    },
+    "/orders": {
+      "get": {
+        "tags": ["Orders"],
+        "operationId": "listOrders",
+        "summary": "List orders",
+        "description": "List purchase orders. Filter by status when reconciling.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["draft", "submitted", "fulfilled", "cancelled"]
+            }
+          },
+          {
+            "name": "updated_after",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Order list" }
+        }
+      },
+      "post": {
+        "tags": ["Orders"],
+        "operationId": "createOrder",
+        "summary": "Create order",
+        "description": "Create a draft order for a vendor without using a cart.",
+        "requestBody": {
+          "required": true,
+          "description": "Order create payload",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["vendor_id", "lines"],
+                "properties": {
+                  "vendor_id": { "type": "string" },
+                  "lines": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["sku", "quantity"],
+                      "properties": {
+                        "sku": { "type": "string" },
+                        "quantity": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created order" }
+        }
+      }
+    },
+    "/orders/{order_id}": {
+      "get": {
+        "tags": ["Orders"],
+        "operationId": "getOrder",
+        "summary": "Get order",
+        "description": "Fetch order detail including line items and fulfillment status.",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Order detail" },
+          "404": { "description": "Not found" }
+        }
+      },
+      "delete": {
+        "tags": ["Orders"],
+        "operationId": "cancelOrder",
+        "summary": "Cancel order",
+        "description": "Cancel a draft or submitted order. Irreversible for submitted orders that have not shipped.",
+        "parameters": [
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": { "description": "Cancelled" },
+          "409": { "description": "Cannot cancel" }
+        }
+      }
+    },
+    "/invoices/{invoice_id}": {
+      "get": {
+        "tags": ["Invoices"],
+        "operationId": "getInvoice",
+        "summary": "Get invoice",
+        "description": "Fetch invoice totals, due date, and payment status.",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Invoice" },
+          "404": { "description": "Not found" }
+        }
+      }
+    },
+    "/invoices/{invoice_id}/pay": {
+      "post": {
+        "tags": ["Invoices"],
+        "operationId": "payInvoice",
+        "summary": "Pay invoice",
+        "description": "Initiate payment for an open invoice. Money-moving — keep disabled unless the agent is explicitly authorized to pay.",
+        "parameters": [
+          {
+            "name": "invoice_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Payment instruction",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["method"],
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": ["ach", "wire", "card"]
+                  },
+                  "amount_cents": { "type": "integer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": { "description": "Payment accepted" },
+          "402": { "description": "Payment failed" }
+        }
+      }
+    },
+    "/vendors": {
+      "get": {
+        "tags": ["Vendors"],
+        "operationId": "listVendors",
+        "summary": "List vendors",
+        "description": "List approved vendors available for purchasing.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Name search"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Vendor list" }
+        }
+      }
+    },
+    "/vendors/{vendor_id}": {
+      "get": {
+        "tags": ["Vendors"],
+        "operationId": "getVendor",
+        "summary": "Get vendor",
+        "description": "Vendor profile, payment terms, and primary contacts.",
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Vendor" },
+          "404": { "description": "Not found" }
+        }
+      }
+    }
+  }
+}

@@ -7,6 +7,7 @@ import {
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
+import { EmptyState } from '@/components/list/EmptyState'
 import {
   OperatorRoleBadge,
   OperatorStatusBadge,
@@ -73,9 +74,10 @@ export function ProfilePage() {
 
   if (!user) {
     return (
-      <div className="text-muted-foreground px-4 py-5 text-sm">
-        No active session.
-      </div>
+      <EmptyState
+        title="No active session"
+        description="Sign in again to view your operator profile."
+      />
     )
   }
 

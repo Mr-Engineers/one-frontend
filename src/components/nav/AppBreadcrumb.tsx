@@ -16,16 +16,25 @@ export function AppBreadcrumb() {
   const crumbs = breadcrumbsForPath(pathname)
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
+    <Breadcrumb className="min-w-0">
+      <BreadcrumbList className="flex-nowrap">
         {crumbs.map((crumb, index) => {
           const isLast = index === crumbs.length - 1
+          const hideOnMobile = !isLast && index < crumbs.length - 2
           return (
             <Fragment key={`${crumb.label}-${index}`}>
-              {index > 0 ? <BreadcrumbSeparator /> : null}
-              <BreadcrumbItem>
+              {index > 0 ? (
+                <BreadcrumbSeparator
+                  className={hideOnMobile ? 'hidden sm:inline-flex' : undefined}
+                />
+              ) : null}
+              <BreadcrumbItem
+                className={hideOnMobile ? 'hidden sm:inline-flex' : undefined}
+              >
                 {isLast ? (
-                  <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+                  <BreadcrumbPage className="max-w-[40vw] truncate sm:max-w-none">
+                    {crumb.label}
+                  </BreadcrumbPage>
                 ) : crumb.href ? (
                   <BreadcrumbLink asChild>
                     <Link to={crumb.href}>{crumb.label}</Link>

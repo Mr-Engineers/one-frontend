@@ -109,7 +109,7 @@ export type AuditEvent = {
   argsRedacted: Record<string, unknown>
 }
 
-/** Rule-pack policy outcomes (short-circuit or escalate to specialist). */
+/** Rule policy outcomes (short-circuit or escalate to specialist). */
 export type RuleOutcome = 'allow' | 'deny' | 'needs_ai'
 
 export type CondOp =
@@ -152,31 +152,12 @@ export type ConditionGroup = {
 export type PolicyRule = {
   id: string
   name: string
+  /** Agent this rule evaluates for. */
+  agentId: string
   tool: string
   when: ConditionGroup
   then: RuleOutcome
   enabled: boolean
-}
-
-export type RulePackVersionStatus = 'draft' | 'published' | 'archived'
-
-export type RulePackVersion = {
-  version: string
-  status: RulePackVersionStatus
-  rules: PolicyRule[]
-  publishedAt?: string
-  updatedAt: string
-}
-
-export type RulePack = {
-  id: string
-  name: string
-  /** Agent this pack evaluates for (demo: Purchasing or Support). */
-  agentId: string
-  description: string
-  activeVersion: string
-  versions: RulePackVersion[]
-  updatedAt: string
 }
 
 export type RuleFieldType = 'enum' | 'number' | 'text'
@@ -233,4 +214,43 @@ export type Specialist = {
   criteriaSummary: string
   loadedAt: string
   lastEvaluateAt: string
+}
+
+/** Runtime / incident events a webhook can subscribe to. */
+export type WebhookEvent =
+  | 'approval.escalated'
+  | 'decision.deny'
+  | 'decision.caution'
+  | 'mcp.health_degraded'
+  | 'mcp.down'
+  | 'rate_limit.hit'
+  | 'specialist.circuit_open'
+  | 'agent.revoked'
+
+export type WebhookStatus = 'active' | 'paused' | 'failing'
+
+export type WebhookDeliveryStatus = 'delivered' | 'failed' | 'pending'
+
+export type WebhookDelivery = {
+  id: string
+  event: WebhookEvent
+  status: WebhookDeliveryStatus
+  statusCode: number | null
+  attemptAt: string
+  latencyMs: number | null
+}
+
+/** Outbound HTTP endpoint notified when subscribed events fire. */
+export type Webhook = {
+  id: string
+  name: string
+  url: string
+  status: WebhookStatus
+  events: WebhookEvent[]
+  secretHint: string
+  description: string
+  createdAt: string
+  lastDeliveryAt: string | null
+  successRatePct: number
+  recentDeliveries: WebhookDelivery[]
 }

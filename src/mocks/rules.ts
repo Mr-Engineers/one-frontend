@@ -10,7 +10,6 @@ import type {
   PolicyRule,
   RuleFieldDef,
   RuleOutcome,
-  RulePack,
 } from './types'
 
 export function createConditionId() {
@@ -19,15 +18,6 @@ export function createConditionId() {
 
 export function createRuleId() {
   return `rul_${Math.random().toString(36).slice(2, 9)}`
-}
-
-export function createPackId(name: string) {
-  const slug = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_|_$/g, '')
-  return `pack_${slug || 'untitled'}`
 }
 
 export function emptyConditionGroup(
@@ -154,7 +144,7 @@ export function mcpServerForTool(tool: string): McpServer | undefined {
   return mockMcpServers.find((s) => s.tools.includes(tool))
 }
 
-/** MCPs attached to the pack's agent — primary browse scope for rules. */
+/** MCPs attached to the agent — primary browse scope for rules. */
 export function mcpsForAgent(agentId: string): McpServer[] {
   const agent = findAgent(agentId)
   if (!agent) return []
@@ -223,13 +213,16 @@ function group(
   return { id: id ?? createConditionId(), combinator, children }
 }
 
-function rule(partial: Omit<PolicyRule, 'id' | 'enabled'> & {
-  id?: string
-  enabled?: boolean
-}): PolicyRule {
+function rule(
+  partial: Omit<PolicyRule, 'id' | 'enabled'> & {
+    id?: string
+    enabled?: boolean
+  },
+): PolicyRule {
   return {
     id: partial.id ?? createRuleId(),
     name: partial.name,
+    agentId: partial.agentId,
     tool: partial.tool,
     when: partial.when,
     then: partial.then,
@@ -237,203 +230,162 @@ function rule(partial: Omit<PolicyRule, 'id' | 'enabled'> & {
   }
 }
 
-export const mockRulePacks: RulePack[] = [
-  {
-    id: 'pack_purchasing',
-    name: 'purchasing',
+/** Flat agent-scoped rules (evaluation order = array order within an agent). */
+export const mockRules: PolicyRule[] = [
+  rule({
+    id: 'rul_purch_search',
+    name: 'search allow',
     agentId: AGENT_IDS.purchasing,
-    description:
-      'Shop checkout and orders — location + amount gates before specialist.',
-    activeVersion: 'v3',
-    updatedAt: '2026-10-03T11:50:00Z',
-    versions: [
-      {
-        version: 'v3',
-        status: 'published',
-        publishedAt: '2026-10-01T09:00:00Z',
-        updatedAt: '2026-10-03T11:50:00Z',
-        rules: [
-          rule({
-            id: 'rul_purch_search',
-            name: 'search allow',
-            tool: 'shop.search',
-            when: group('and', []),
-            then: 'allow',
-          }),
-          rule({
-            id: 'rul_purch_unknown_site',
-            name: 'deny unknown site',
-            tool: 'shop.checkout',
-            when: group('and', [
-              leaf({ field: 'shop_location', op: 'is_empty', value: '' }),
-            ]),
-            then: 'deny',
-          }),
-          rule({
-            id: 'rul_purch_hq_low',
-            name: 'low-risk HQ purchase',
-            tool: 'shop.checkout',
-            when: group('and', [
-              leaf({ field: 'shop_location', op: 'eq', value: 'hq' }),
-              leaf({ field: 'total_eur', op: 'lte', value: '50' }),
-            ]),
-            then: 'allow',
-          }),
-          rule({
-            id: 'rul_purch_risky_site',
-            name: 'risky site spend',
-            tool: 'shop.checkout',
-            when: group('and', [
-              leaf({
-                field: 'shop_location',
-                op: 'in',
-                value: 'popup,remote',
-              }),
-              leaf({ field: 'total_eur', op: 'gt', value: '0' }),
-            ]),
-            then: 'needs_ai',
-          }),
-          rule({
-            id: 'rul_purch_elevated',
-            name: 'elevated spend or non-HQ',
-            tool: 'shop.checkout',
-            when: group('or', [
-              leaf({ field: 'total_eur', op: 'gt', value: '50' }),
-              leaf({
-                field: 'shop_location',
-                op: 'in',
-                value: 'popup,remote',
-              }),
-            ]),
-            then: 'needs_ai',
-          }),
-          rule({
-            id: 'rul_purch_new_vendor',
-            name: 'new vendor order',
-            tool: 'shop.order_create',
-            when: group('or', [
-              leaf({ field: 'vendor', op: 'eq', value: '***new***' }),
-              leaf({ field: 'total_eur', op: 'gt', value: '200' }),
-            ]),
-            then: 'needs_ai',
-          }),
-        ],
-      },
-      {
-        version: 'v4',
-        status: 'draft',
-        updatedAt: '2026-10-03T12:00:00Z',
-        rules: [],
-      },
-    ],
-  },
-  {
-    id: 'pack_inventory',
-    name: 'inventory',
+    tool: 'shop.search',
+    when: group('and', []),
+    then: 'allow',
+  }),
+  rule({
+    id: 'rul_purch_unknown_site',
+    name: 'deny unknown site',
     agentId: AGENT_IDS.purchasing,
-    description:
-      'Magazine receive/adjust — quantity delta and reason integrity.',
-    activeVersion: 'v1',
-    updatedAt: '2026-10-03T11:48:00Z',
-    versions: [
-      {
-        version: 'v1',
-        status: 'published',
-        publishedAt: '2026-09-20T14:00:00Z',
-        updatedAt: '2026-10-03T11:48:00Z',
-        rules: [
-          rule({
-            id: 'rul_inv_receive',
-            name: 'receive allow',
-            tool: 'magazine.receive',
-            when: group('and', [
-              leaf({ field: 'qty', op: 'gt', value: '0' }),
-            ]),
-            then: 'allow',
-          }),
-          rule({
-            id: 'rul_inv_bad_reason',
-            name: 'bad shrink reason',
-            tool: 'magazine.adjust',
-            when: group('and', [
-              leaf({ field: 'delta', op: 'lt', value: '0' }),
-              leaf({
-                field: 'reason',
-                op: 'not_in',
-                value: 'cycle_count,damage,transfer',
-              }),
-            ]),
-            then: 'deny',
-          }),
-          rule({
-            id: 'rul_inv_large',
-            name: 'large adjust',
-            tool: 'magazine.adjust',
-            when: group('and', [
-              leaf({ field: 'abs_delta', op: 'gt', value: '10' }),
-            ]),
-            then: 'needs_ai',
-          }),
-          rule({
-            id: 'rul_inv_small',
-            name: 'small adjust',
-            tool: 'magazine.adjust',
-            when: group('and', [
-              leaf({ field: 'abs_delta', op: 'lte', value: '10' }),
-            ]),
-            then: 'allow',
-          }),
-        ],
-      },
-    ],
-  },
-  {
-    id: 'pack_support',
-    name: 'support',
+    tool: 'shop.checkout',
+    when: group('and', [
+      leaf({ field: 'shop_location', op: 'is_empty', value: '' }),
+    ]),
+    then: 'deny',
+  }),
+  rule({
+    id: 'rul_purch_hq_low',
+    name: 'low-risk HQ purchase',
+    agentId: AGENT_IDS.purchasing,
+    tool: 'shop.checkout',
+    when: group('and', [
+      leaf({ field: 'shop_location', op: 'eq', value: 'hq' }),
+      leaf({ field: 'total_eur', op: 'lte', value: '50' }),
+    ]),
+    then: 'allow',
+  }),
+  rule({
+    id: 'rul_purch_risky_site',
+    name: 'risky site spend',
+    agentId: AGENT_IDS.purchasing,
+    tool: 'shop.checkout',
+    when: group('and', [
+      leaf({
+        field: 'shop_location',
+        op: 'in',
+        value: 'popup,remote',
+      }),
+      leaf({ field: 'total_eur', op: 'gt', value: '0' }),
+    ]),
+    then: 'needs_ai',
+  }),
+  rule({
+    id: 'rul_purch_elevated',
+    name: 'elevated spend or non-HQ',
+    agentId: AGENT_IDS.purchasing,
+    tool: 'shop.checkout',
+    when: group('or', [
+      leaf({ field: 'total_eur', op: 'gt', value: '50' }),
+      leaf({
+        field: 'shop_location',
+        op: 'in',
+        value: 'popup,remote',
+      }),
+    ]),
+    then: 'needs_ai',
+  }),
+  rule({
+    id: 'rul_purch_new_vendor',
+    name: 'new vendor order',
+    agentId: AGENT_IDS.purchasing,
+    tool: 'shop.order_create',
+    when: group('or', [
+      leaf({ field: 'vendor', op: 'eq', value: '***new***' }),
+      leaf({ field: 'total_eur', op: 'gt', value: '200' }),
+    ]),
+    then: 'needs_ai',
+  }),
+  rule({
+    id: 'rul_inv_receive',
+    name: 'receive allow',
+    agentId: AGENT_IDS.purchasing,
+    tool: 'magazine.receive',
+    when: group('and', [leaf({ field: 'qty', op: 'gt', value: '0' })]),
+    then: 'allow',
+  }),
+  rule({
+    id: 'rul_inv_bad_reason',
+    name: 'bad shrink reason',
+    agentId: AGENT_IDS.purchasing,
+    tool: 'magazine.adjust',
+    when: group('and', [
+      leaf({ field: 'delta', op: 'lt', value: '0' }),
+      leaf({
+        field: 'reason',
+        op: 'not_in',
+        value: 'cycle_count,damage,transfer',
+      }),
+    ]),
+    then: 'deny',
+  }),
+  rule({
+    id: 'rul_inv_large',
+    name: 'large adjust',
+    agentId: AGENT_IDS.purchasing,
+    tool: 'magazine.adjust',
+    when: group('and', [
+      leaf({ field: 'abs_delta', op: 'gt', value: '10' }),
+    ]),
+    then: 'needs_ai',
+  }),
+  rule({
+    id: 'rul_inv_small',
+    name: 'small adjust',
+    agentId: AGENT_IDS.purchasing,
+    tool: 'magazine.adjust',
+    when: group('and', [
+      leaf({ field: 'abs_delta', op: 'lte', value: '10' }),
+    ]),
+    then: 'allow',
+  }),
+  rule({
+    id: 'rul_sup_list',
+    name: 'list allow',
     agentId: AGENT_IDS.support,
-    description: 'Ticket priority and external-facing comment escalation.',
-    activeVersion: 'v2',
-    updatedAt: '2026-10-03T11:45:00Z',
-    versions: [
-      {
-        version: 'v2',
-        status: 'published',
-        publishedAt: '2026-09-28T10:00:00Z',
-        updatedAt: '2026-10-03T11:45:00Z',
-        rules: [
-          rule({
-            id: 'rul_sup_list',
-            name: 'list allow',
-            tool: 'tickets.list',
-            when: group('and', []),
-            then: 'allow',
-          }),
-          rule({
-            id: 'rul_sup_urgent',
-            name: 'priority urgent',
-            tool: 'tickets.update',
-            when: group('and', [
-              leaf({ field: 'priority', op: 'eq', value: 'urgent' }),
-            ]),
-            then: 'needs_ai',
-          }),
-          rule({
-            id: 'rul_sup_external',
-            name: 'external comment',
-            tool: 'tickets.comment',
-            when: group('and', [
-              leaf({ field: 'audience', op: 'eq', value: 'external' }),
-            ]),
-            then: 'needs_ai',
-          }),
-        ],
-      },
-    ],
-  },
+    tool: 'tickets.list',
+    when: group('and', []),
+    then: 'allow',
+  }),
+  rule({
+    id: 'rul_sup_urgent',
+    name: 'priority urgent',
+    agentId: AGENT_IDS.support,
+    tool: 'tickets.update',
+    when: group('and', [
+      leaf({ field: 'priority', op: 'eq', value: 'urgent' }),
+    ]),
+    then: 'needs_ai',
+  }),
+  rule({
+    id: 'rul_sup_external',
+    name: 'external comment',
+    agentId: AGENT_IDS.support,
+    tool: 'tickets.comment',
+    when: group('and', [
+      leaf({ field: 'audience', op: 'eq', value: 'external' }),
+    ]),
+    then: 'needs_ai',
+  }),
+  rule({
+    id: 'rul_sup_close',
+    name: 'close without resolution',
+    agentId: AGENT_IDS.support,
+    tool: 'tickets.close',
+    when: group('and', []),
+    then: 'deny',
+  }),
 ]
 
+/** Dry-run samples keyed by agent id. */
 export const mockDryRunSamples: Record<string, DryRunSample[]> = {
-  pack_purchasing: [
+  [AGENT_IDS.purchasing]: [
     {
       id: 'dry_purch_popup',
       label: 'Popup checkout €72',
@@ -469,8 +421,6 @@ export const mockDryRunSamples: Record<string, DryRunSample[]> = {
         shop_location: 'branch',
       },
     },
-  ],
-  pack_inventory: [
     {
       id: 'dry_inv_large',
       label: 'Adjust −15 cycle_count',
@@ -490,7 +440,7 @@ export const mockDryRunSamples: Record<string, DryRunSample[]> = {
       args: { sku: 'TONER-BK', delta: -8, reason: 'shrink' },
     },
   ],
-  pack_support: [
+  [AGENT_IDS.support]: [
     {
       id: 'dry_sup_urgent',
       label: 'Urgent ticket update',
@@ -512,6 +462,13 @@ export const mockDryRunSamples: Record<string, DryRunSample[]> = {
       },
     },
   ],
+}
+
+export function rulesForAgent(
+  agentId: string,
+  rules: PolicyRule[] = mockRules,
+): PolicyRule[] {
+  return rules.filter((r) => r.agentId === agentId)
 }
 
 function resolveArg(
@@ -606,19 +563,4 @@ export function evaluateRules(
     }
   }
   return { outcome: 'no_match', matchedRule: null }
-}
-
-export function activeVersionOf(pack: RulePack) {
-  return (
-    pack.versions.find((v) => v.version === pack.activeVersion) ??
-    pack.versions[0]
-  )
-}
-
-export function packRuleCount(pack: RulePack): number {
-  return activeVersionOf(pack)?.rules.length ?? 0
-}
-
-export function packStatus(pack: RulePack) {
-  return activeVersionOf(pack)?.status ?? 'draft'
 }

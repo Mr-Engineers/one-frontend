@@ -6,8 +6,9 @@ import type {
   OperatorRole,
   OperatorStatus,
   RoleStatus,
-  RulePackVersionStatus,
   SpecialistHealth,
+  WebhookDeliveryStatus,
+  WebhookStatus,
 } from '@/mocks'
 
 const decisionTheme: Record<
@@ -15,8 +16,7 @@ const decisionTheme: Record<
   | 'active'
   | 'revoked'
   | 'disabled'
-  | RoleStatus
-  | RulePackVersionStatus,
+  | RoleStatus,
   { theme: BadgeTheme; label: string }
 > = {
   allow: { theme: BadgeTheme.Green, label: 'Allow' },
@@ -28,7 +28,6 @@ const decisionTheme: Record<
   revoked: { theme: BadgeTheme.Red, label: 'Revoked' },
   disabled: { theme: BadgeTheme.Gray, label: 'Disabled' },
   draft: { theme: BadgeTheme.Yellow, label: 'Draft' },
-  published: { theme: BadgeTheme.Green, label: 'Published' },
   archived: { theme: BadgeTheme.Gray, label: 'Archived' },
 }
 
@@ -139,5 +138,45 @@ export function OperatorRoleBadge({
   size?: 'default' | 'table'
 }) {
   const { theme, label } = operatorRoleTheme[role]
+  return <ThemedBadge text={label} theme={theme} size={size} />
+}
+
+const webhookStatusTheme: Record<
+  WebhookStatus,
+  { theme: BadgeTheme; label: string }
+> = {
+  active: { theme: BadgeTheme.Green, label: 'Active' },
+  paused: { theme: BadgeTheme.Gray, label: 'Paused' },
+  failing: { theme: BadgeTheme.Red, label: 'Failing' },
+}
+
+const webhookDeliveryTheme: Record<
+  WebhookDeliveryStatus,
+  { theme: BadgeTheme; label: string }
+> = {
+  delivered: { theme: BadgeTheme.Green, label: 'Delivered' },
+  failed: { theme: BadgeTheme.Red, label: 'Failed' },
+  pending: { theme: BadgeTheme.Blue, label: 'Pending' },
+}
+
+export function WebhookStatusBadge({
+  status,
+  size = 'table',
+}: {
+  status: WebhookStatus
+  size?: 'default' | 'table'
+}) {
+  const { theme, label } = webhookStatusTheme[status]
+  return <ThemedBadge text={label} theme={theme} size={size} />
+}
+
+export function WebhookDeliveryBadge({
+  status,
+  size = 'table',
+}: {
+  status: WebhookDeliveryStatus
+  size?: 'default' | 'table'
+}) {
+  const { theme, label } = webhookDeliveryTheme[status]
   return <ThemedBadge text={label} theme={theme} size={size} />
 }

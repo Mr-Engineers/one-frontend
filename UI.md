@@ -8,7 +8,7 @@ Primary UI is the **Modus operator dashboard**. Shop + magazine live in separate
 
 | Layer | In nav? | Screens | Job |
 | --- | --- | --- | --- |
-| **Monitor** | Yes | Overview, Approvals, Audit | Runtime queues + usage |
+| **Monitor** | Yes | Overview, Approvals, Audit, Webhooks | Runtime queues + usage + outbound notify |
 | **Agent hub** | Yes | Agents (Overview · Access · Rules · Limits · Keys) | Primary control surface |
 | **MCP** | Yes | Org-wide MCP catalog | Connect once; agents add from this list |
 | **Deep-link catalogs** | No | Roles, Specialists | Opened from Agent Access / Rules |
@@ -33,7 +33,7 @@ Roles are **templates**, not a second place to wire MCP. Attach MCP on the agent
 | Element | Why |
 | --- | --- |
 | Login / session gate | Operator auth |
-| Side nav | Overview · Approvals · Audit · Agents · MCP (+ Settings in footer) |
+| Side nav | Overview · Approvals · Audit · Webhooks · Agents · MCP (+ Settings in footer) |
 | Global pending-approvals badge | Escalation urgency |
 | Toasts / banners | Allow/deny/rate-limit feedback |
 | Empty / error / loading states | First-run + outages |
@@ -75,7 +75,11 @@ Deep-linked from Agent → Rules. Runs when a pack returns `needs_ai`.
 
 Filterable event table, event detail (decision chain: RBAC → rules → specialist → human), redacted args JSON, export.
 
-### 8. Agent flow simulator
+### 8. Webhooks
+
+Outbound HTTPS endpoints subscribed to runtime / incident events (approvals escalated, denies, MCP down, rate limits, specialist circuit open, agent revoked). List + detail (events toggle, delivery log), add endpoint overlay. Delivery is future-backed; UI defines subscriptions now.
+
+### 9. Agent flow simulator
 
 Deep-link / stub: agent + role picker, scenarios, timeline, open in audit.
 

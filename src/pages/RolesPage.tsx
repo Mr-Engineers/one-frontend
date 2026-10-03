@@ -7,6 +7,8 @@ import {
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
+import { EmptyState, ListEmptyState } from '@/components/list/EmptyState'
+import { TableSkeleton } from '@/components/list/ListSkeletons'
 import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
@@ -20,6 +22,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useListDetailSquash } from '@/hooks/useListDetailSquash'
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import {
   applyTableFilter,
   type FilterColumnDef,
@@ -73,6 +76,7 @@ const ROLE_FILTER_COLUMNS: FilterColumnDef<Role>[] = [
 ]
 
 export function RolesPage() {
+  const loading = useSimulatedLoading()
   const [roles, setRoles] = useState(mockRoles)
   const [agents] = useState(mockAgents)
   const [filters, setFilters] = useState<FilterRule[]>([])
@@ -97,8 +101,9 @@ export function RolesPage() {
     setRoles((prev) => prev.map((r) => (r.id === next.id ? next : r)))
   }
 
-  const list = useMemo(
-    () => (
+  const list = useMemo(() => {
+    if (loading) return <TableSkeleton columns={5} rows={5} />
+    return (
       <>
         <div className="border-border text-muted-foreground border-b px-4 py-2.5 text-xs">
           Grant templates — assign and review effective access on an{' '}
@@ -118,9 +123,11 @@ export function RolesPage() {
           rowCount={visible.length}
         />
         {visible.length === 0 ? (
-          <p className="text-muted-foreground px-4 py-8 text-xs">
-            No roles match this filter.
-          </p>
+          <ListEmptyState
+            sourceEmpty={roles.length === 0}
+            title="No roles yet"
+            description="Create a grant template, then assign it from an agent’s Access tab."
+          />
         ) : (
           <Table>
             <TableHeader>
@@ -200,9 +207,17 @@ export function RolesPage() {
           </Table>
         )}
       </>
-    ),
-    [agents, filters, openRow, sort, squash.overlay?.payload.id, visible],
-  )
+    )
+  }, [
+    agents,
+    filters,
+    loading,
+    openRow,
+    roles.length,
+    sort,
+    squash.overlay?.payload.id,
+    visible,
+  ])
 
   return (
     <SquashListArea
@@ -404,7 +419,11 @@ function RoleDetail({
           hub.
         </p>
         {assigned.length === 0 ? (
-          <p className="text-muted-foreground text-xs">No agents assigned.</p>
+          <EmptyState
+            compact
+            title="No agents assigned"
+            description="Assign this template from an agent’s Access tab."
+          />
         ) : (
           <ul className="border-border divide-border divide-y border">
             {assigned.map((agent) => (
@@ -438,9 +457,11 @@ function RoleDetail({
           Effective allow-list before rules and AI review.
         </p>
         {effective.length === 0 ? (
-          <p className="text-muted-foreground text-xs">
-            No tools allowed — all calls are denied at access check.
-          </p>
+          <EmptyState
+            compact
+            title="No tools allowed"
+            description="All calls are denied at access check until grants are enabled."
+          />
         ) : (
           <ul className="border-border divide-border divide-y border">
             {effective.map((e) => (

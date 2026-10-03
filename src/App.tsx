@@ -13,6 +13,7 @@ import { RolesPage } from '@/pages/RolesPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { SpecialistsPage } from '@/pages/SpecialistsPage'
 import { SimulatorPage } from '@/pages/SimulatorPage'
+import { WebhooksPage } from '@/pages/WebhooksPage'
 
 export default function App() {
   return (
@@ -38,6 +39,11 @@ export default function App() {
           <Route path={routes.mcp} element={<McpRegistryPage />} />
           <Route path={routes.audit} element={<AuditPage />} />
           <Route path={`${routes.audit}/:eventId`} element={<AuditPage />} />
+          <Route path={routes.webhooks} element={<WebhooksPage />} />
+          <Route
+            path={`${routes.webhooks}/:webhookId`}
+            element={<WebhooksPage />}
+          />
           <Route path={routes.specialists} element={<SpecialistsPage />} />
           <Route
             path={`${routes.specialists}/:specialistId`}

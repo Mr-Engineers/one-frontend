@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import { RiAddLine } from '@remixicon/react'
 
+import { ListEmptyState } from '@/components/list/EmptyState'
+import { CardGridSkeleton } from '@/components/list/ListSkeletons'
 import { ConnectMcpWizard } from '@/components/mcp/ConnectMcpWizard'
 import { McpHealthBadge } from '@/components/status/StatusBadge'
 import { Button } from '@/components/ui/button'
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import { cn } from '@/lib/utils'
 import {
   mockMcpServers,
@@ -14,6 +17,7 @@ import {
 type KindFilter = 'all' | McpKind
 
 export function McpRegistryPage() {
+  const loading = useSimulatedLoading()
   const [servers, setServers] = useState(mockMcpServers)
   const [kind, setKind] = useState<KindFilter>('all')
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -61,13 +65,27 @@ export function McpRegistryPage() {
         </Button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {visible.length === 0 ? (
-          <p className="text-muted-foreground font-mono text-xs">
-            No MCP servers in this view.
-          </p>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {loading ? (
+          <CardGridSkeleton cards={6} />
+        ) : visible.length === 0 ? (
+          <ListEmptyState
+            sourceEmpty={servers.length === 0}
+            title="No MCP servers"
+            description={
+              kind === 'all'
+                ? 'Connect a remote or hosted MCP server to make tools available to agents.'
+                : `No ${kind} servers in the catalog yet.`
+            }
+            action={
+              <Button type="button" size="sm" onClick={() => setWizardOpen(true)}>
+                <RiAddLine className="size-3.5" />
+                Add MCP
+              </Button>
+            }
+          />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {visible.map((server) => (
               <McpServerCard key={server.id} server={server} />
             ))}

@@ -9,14 +9,14 @@ import {
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
+import { EmptyState, ListEmptyState } from '@/components/list/EmptyState'
+import { TableSkeleton } from '@/components/list/ListSkeletons'
 import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { AttachMcpAuthFlow } from '@/components/mcp/AttachMcpAuthFlow'
 import { ConnectMcpWizard } from '@/components/mcp/ConnectMcpWizard'
 import { CreateQuotaWizard } from '@/components/rate-limits'
-import { CreateRulePackWizard } from '@/components/rules/CreateRulePackWizard'
-import { RulePackCard } from '@/components/rules/RulePackCard'
-import { RulePackWorkspace } from '@/components/rules/RulePackWorkspace'
+import { AgentRulesPanel } from '@/components/rules/AgentRulesPanel'
 import { SquashListArea } from '@/components/squash-reveal'
 import {
   McpHealthBadge,
@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/table'
 import { BadgeTheme, ThemedBadge } from '@/components/ui/themed-badge'
 import { useListDetailSquash } from '@/hooks/useListDetailSquash'
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import {
   applyTableFilter,
   type FilterColumnDef,
@@ -61,16 +62,17 @@ import {
   mockMcpServers,
   mockRateLimitQuotas,
   mockRoles,
-  mockRulePacks,
+  mockRules,
   mockSpecialists,
   quotaPressure,
   quotasForAgent,
   remainingOf,
+  rulesForAgent,
   type Agent,
   type CallsBucket,
   type McpServer,
+  type PolicyRule,
   type RateLimitQuota,
-  type RulePack,
 } from '@/mocks'
 
 const DETAIL_TITLE_ID = 'agent-detail-title'
@@ -125,10 +127,11 @@ function roleName(agent: Agent): string {
 }
 
 export function AgentsPage() {
+  const loading = useSimulatedLoading()
   const [agents, setAgents] = useState(mockAgents)
   const [servers, setServers] = useState(mockMcpServers)
   const [quotas, setQuotas] = useState(mockRateLimitQuotas)
-  const [rulePacks, setRulePacks] = useState(mockRulePacks)
+  const [rules, setRules] = useState(mockRules)
   const [filters, setFilters] = useState<FilterRule[]>([])
   const [sort, setSort] = useState<TableSortState>(null)
   const [connectOpen, setConnectOpen] = useState(false)
@@ -167,8 +170,9 @@ export function AgentsPage() {
     })
   }
 
-  const list = useMemo(
-    () => (
+  const list = useMemo(() => {
+    if (loading) return <TableSkeleton columns={5} rows={6} />
+    return (
       <>
         <TableFilterBar
           columns={AGENT_FILTER_COLUMNS}
@@ -176,70 +180,85 @@ export function AgentsPage() {
           onRulesChange={setFilters}
           rowCount={visible.length}
         />
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <SortableTableHead
-                columnId="name"
-                label="Name"
-                sort={sort}
-                onSort={(id) => setSort((s) => nextSortState(s, id))}
-              />
-              <SortableTableHead
-                columnId="role"
-                label="Role"
-                sort={sort}
-                onSort={(id) => setSort((s) => nextSortState(s, id))}
-              />
-              <SortableTableHead
-                columnId="status"
-                label="Status"
-                sort={sort}
-                onSort={(id) => setSort((s) => nextSortState(s, id))}
-              />
-              <SortableTableHead
-                columnId="api_key"
-                label="API key"
-                sort={sort}
-                onSort={(id) => setSort((s) => nextSortState(s, id))}
-              />
-              <SortableTableHead
-                columnId="last_seen"
-                label="Last seen"
-                sort={sort}
-                onSort={(id) => setSort((s) => nextSortState(s, id))}
-              />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {visible.map((agent) => (
-              <TableRow
-                key={agent.id}
-                className="cursor-pointer"
-                data-state={
-                  squash.overlay?.payload.id === agent.id
-                    ? 'selected'
-                    : undefined
-                }
-                onClick={() => openRow(agent)}
-              >
-                <TableCell className="font-medium">{agent.name}</TableCell>
-                <TableCell>{roleName(agent)}</TableCell>
-                <TableCell>
-                  <StatusBadge status={agent.status} />
-                </TableCell>
-                <TableCell className="font-mono text-[12px]">
-                  {agent.apiKeyHint}
-                </TableCell>
-                <TableCell>{formatTimestamp(agent.lastSeenAt)}</TableCell>
+        {visible.length === 0 ? (
+          <ListEmptyState
+            sourceEmpty={agents.length === 0}
+            title="No agents yet"
+            description="Create an agent to attach MCP servers, bind a role, and issue API keys."
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <SortableTableHead
+                  columnId="name"
+                  label="Name"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="role"
+                  label="Role"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="status"
+                  label="Status"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="api_key"
+                  label="API key"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
+                <SortableTableHead
+                  columnId="last_seen"
+                  label="Last seen"
+                  sort={sort}
+                  onSort={(id) => setSort((s) => nextSortState(s, id))}
+                />
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {visible.map((agent) => (
+                <TableRow
+                  key={agent.id}
+                  className="cursor-pointer"
+                  data-state={
+                    squash.overlay?.payload.id === agent.id
+                      ? 'selected'
+                      : undefined
+                  }
+                  onClick={() => openRow(agent)}
+                >
+                  <TableCell className="font-medium">{agent.name}</TableCell>
+                  <TableCell>{roleName(agent)}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={agent.status} />
+                  </TableCell>
+                  <TableCell className="font-mono text-[12px]">
+                    {agent.apiKeyHint}
+                  </TableCell>
+                  <TableCell>{formatTimestamp(agent.lastSeenAt)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
       </>
-    ),
-    [filters, openRow, sort, squash.overlay?.payload.id, visible],
-  )
+    )
+  }, [
+    agents.length,
+    filters,
+    loading,
+    openRow,
+    sort,
+    squash.overlay?.payload.id,
+    visible,
+  ])
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -260,8 +279,7 @@ export function AgentsPage() {
               agent={live}
               servers={servers}
               quotas={quotas}
-              rulePacks={rulePacks.filter((p) => p.agentId === live.id)}
-              allRulePackNames={rulePacks.map((p) => p.name)}
+              rules={rulesForAgent(live.id, rules)}
               onRevoke={() => {
                 patchAgent({
                   ...live,
@@ -279,13 +297,11 @@ export function AgentsPage() {
                   prev.map((q) => (q.id === quota.id ? quota : q)),
                 )
               }}
-              onRulePackCreated={(pack) => {
-                setRulePacks((prev) => [pack, ...prev])
-              }}
-              onRulePackChange={(pack) => {
-                setRulePacks((prev) =>
-                  prev.map((p) => (p.id === pack.id ? pack : p)),
-                )
+              onRulesChange={(next) => {
+                setRules((prev) => [
+                  ...prev.filter((r) => r.agentId !== live.id),
+                  ...next,
+                ])
               }}
               onAddMcp={(server) => {
                 if (server.requiresAuth) {
@@ -347,36 +363,30 @@ function AgentDetail({
   agent,
   servers,
   quotas,
-  rulePacks,
-  allRulePackNames,
+  rules,
   onRevoke,
   onChange,
   onQuotaCreated,
   onQuotaChange,
-  onRulePackCreated,
-  onRulePackChange,
+  onRulesChange,
   onAddMcp,
   onAddNewMcp,
 }: {
   agent: Agent
   servers: McpServer[]
   quotas: RateLimitQuota[]
-  rulePacks: RulePack[]
-  allRulePackNames: string[]
+  rules: PolicyRule[]
   onRevoke: () => void
   onChange: (agent: Agent) => void
   onQuotaCreated: (quota: RateLimitQuota) => void
   onQuotaChange: (quota: RateLimitQuota) => void
-  onRulePackCreated: (pack: RulePack) => void
-  onRulePackChange: (pack: RulePack) => void
+  onRulesChange: (rules: PolicyRule[]) => void
   onAddMcp: (server: McpServer) => void
   onAddNewMcp: () => void
 }) {
   const [tab, setTab] = useState<AgentTab>('overview')
   const [quotaWizardOpen, setQuotaWizardOpen] = useState(false)
-  const [packWizardOpen, setPackWizardOpen] = useState(false)
-  const [openPackId, setOpenPackId] = useState<string | null>(null)
-  const [focusEditor, setFocusEditor] = useState(false)
+  const [rulesEditorKey, setRulesEditorKey] = useState(0)
   const posture = effectiveAgentPosture(agent)
   const role = posture.role
   const linked = agent.mcpServerIds
@@ -386,24 +396,8 @@ function AgentDetail({
   const agentQuotas = quotasForAgent(agent.id, quotas)
   const assignableRoles = mockRoles.filter((r) => r.status !== 'archived')
   const specialist = mockSpecialists.find((s) => s.agentId === agent.id)
-  const openPack = openPackId
-    ? (rulePacks.find((p) => p.id === openPackId) ?? null)
-    : null
-  const rulesWorkspaceOpen = tab === 'rules' && openPack != null
-  /** Pack / quota creators and pack workspace — hide agent chrome. */
-  const immersive =
-    rulesWorkspaceOpen || packWizardOpen || quotaWizardOpen
-
-  function openPackWorkspace(pack: RulePack, withEditor = false) {
-    setFocusEditor(withEditor)
-    setPackWizardOpen(false)
-    setOpenPackId(pack.id)
-  }
-
-  function closePackWorkspace() {
-    setFocusEditor(false)
-    setOpenPackId(null)
-  }
+  /** Quota creator — hide agent chrome. */
+  const immersive = quotaWizardOpen
 
   function detachMcp(serverId: string) {
     onChange({
@@ -431,7 +425,7 @@ function AgentDetail({
       {!immersive ? (
         <div
           className={cn(
-            'border-border flex h-10 shrink-0 items-center gap-1 border-b',
+            'border-border flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
             DETAIL_INSET_X,
           )}
         >
@@ -439,12 +433,9 @@ function AgentDetail({
             <button
               key={item.id}
               type="button"
-              onClick={() => {
-                setTab(item.id)
-                if (item.id !== 'rules') closePackWorkspace()
-              }}
+              onClick={() => setTab(item.id)}
               className={cn(
-                'h-7 rounded-sm px-2.5 font-mono text-[12px] transition-colors',
+                'h-7 shrink-0 rounded-sm px-2.5 font-mono text-[12px] transition-colors',
                 tab === item.id
                   ? 'bg-secondary text-foreground'
                   : 'text-muted-foreground hover:text-foreground',
@@ -456,20 +447,13 @@ function AgentDetail({
         </div>
       ) : null}
 
-      <div
-        className={cn(
-          'min-h-0 flex-1',
-          rulesWorkspaceOpen
-            ? 'flex flex-col overflow-hidden'
-            : 'overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]',
-        )}
-      >
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain [scrollbar-gutter:stable]">
       {tab === 'overview' ? (
         <PostureTab
           agent={agent}
           posture={posture}
           quotas={agentQuotas}
-          rulePackCount={rulePacks.length}
+          ruleCount={rules.length}
           onGoAccess={() => setTab('access')}
           onGoRules={() => setTab('rules')}
           onGoLimits={() => setTab('limits')}
@@ -528,9 +512,11 @@ function AgentDetail({
             }
           >
             {linked.length === 0 ? (
-              <p className="text-muted-foreground text-xs">
-                None yet — Add from the org catalog.
-              </p>
+              <EmptyState
+                compact
+                title="No MCP servers attached"
+                description="Add from the org catalog so this agent can reach tools."
+              />
             ) : (
               <ul className="border-border divide-border divide-y border">
                 {linked.map((server) => (
@@ -611,14 +597,18 @@ function AgentDetail({
             description="Intersection of grants and MCP. Rules can still deny or escalate."
           >
             {!role ? (
-              <p className="text-muted-foreground text-xs">
-                Pick grants above to see what becomes callable.
-              </p>
+              <EmptyState
+                compact
+                title="No role selected"
+                description="Pick grants above to see what becomes callable."
+              />
             ) : posture.callable.length === 0 &&
               posture.unreachable.length === 0 ? (
-              <p className="text-muted-foreground text-xs">
-                Grants allow no tools.
-              </p>
+              <EmptyState
+                compact
+                title="No tools allowed"
+                description="This role grants nothing — all calls are denied at access check."
+              />
             ) : (
               <ul className="border-border divide-border divide-y border">
                 {posture.callable.map((e) => (
@@ -671,9 +661,11 @@ function AgentDetail({
             }
           >
             {agentQuotas.length === 0 ? (
-              <p className="text-muted-foreground text-xs">
-                No caps yet — add a daily or burst limit.
-              </p>
+              <EmptyState
+                compact
+                title="No caps yet"
+                description="Add a daily or burst limit to throttle this agent."
+              />
             ) : (
               <ul className="border-border divide-border divide-y border">
                 {agentQuotas.map((quota) => {
@@ -783,89 +775,71 @@ function AgentDetail({
       ) : null}
 
       {tab === 'rules' ? (
-        openPack ? (
-          <RulePackWorkspace
-            key={`${openPack.id}-${focusEditor ? 'edit' : 'view'}`}
-            pack={openPack}
-            embedded
-            focusEditor={focusEditor}
-            onUpdate={onRulePackChange}
-            onClose={closePackWorkspace}
-          />
-        ) : (
-          <>
-            <DetailSection
-              title="Rules"
-              description="After access checks — allow, deny, or escalate to the specialist."
-              actions={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => setPackWizardOpen(true)}
-                >
-                  <RiAddLine className="size-3" />
-                  New pack
-                </Button>
-              }
-            >
-              {rulePacks.length === 0 ? (
-                <p className="text-muted-foreground text-xs">
-                  No packs yet — create one to start adding rules.
-                </p>
-              ) : (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {rulePacks.map((pack) => (
-                    <RulePackCard
-                      key={pack.id}
-                      pack={pack}
-                      showAgent={false}
-                      onOpen={() => openPackWorkspace(pack)}
-                    />
-                  ))}
-                </div>
-              )}
-            </DetailSection>
+        <>
+          <DetailSection
+            title="Rules"
+            description="After access checks — allow, deny, or escalate to the specialist. First matching rule wins."
+            actions={
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => setRulesEditorKey((k) => k + 1)}
+              >
+                <RiAddLine className="size-3" />
+                New rule
+              </Button>
+            }
+          >
+            <AgentRulesPanel
+              key={`${agent.id}-${rulesEditorKey}`}
+              agentId={agent.id}
+              rules={rules}
+              onChange={onRulesChange}
+              focusEditor={rulesEditorKey > 0}
+            />
+          </DetailSection>
 
-            <DetailSection
-              title="Specialist"
-              description="Runs when a rule returns needs_ai."
-              actions={
-                specialist ? (
-                  <Link
-                    to={routes.specialistDetail(specialist.id)}
-                    className="text-muted-foreground hover:text-foreground font-mono text-[11px] underline-offset-2 hover:underline"
-                  >
-                    Open
-                  </Link>
-                ) : null
-              }
-            >
-              {!specialist ? (
-                <p className="text-muted-foreground text-xs">
-                  No specialist bound to this agent.
-                </p>
-              ) : (
-                <MetaGrid
-                  items={[
-                    { label: 'Name', value: specialist.name },
-                    { label: 'Model', value: specialist.modelId },
-                    {
-                      label: 'Health',
-                      value: (
-                        <SpecialistHealthBadge health={specialist.health} />
-                      ),
-                    },
-                    {
-                      label: 'Clear threshold',
-                      value: String(specialist.clearThreshold),
-                    },
-                  ]}
-                />
-              )}
-            </DetailSection>
-          </>
-        )
+          <DetailSection
+            title="Specialist"
+            description="Runs when a rule returns needs_ai."
+            actions={
+              specialist ? (
+                <Link
+                  to={routes.specialistDetail(specialist.id)}
+                  className="text-muted-foreground hover:text-foreground font-mono text-[11px] underline-offset-2 hover:underline"
+                >
+                  Open
+                </Link>
+              ) : null
+            }
+          >
+            {!specialist ? (
+              <EmptyState
+                compact
+                title="No specialist bound"
+                description="Bind an AI reviewer for needs_ai outcomes from rules."
+              />
+            ) : (
+              <MetaGrid
+                items={[
+                  { label: 'Name', value: specialist.name },
+                  { label: 'Model', value: specialist.modelId },
+                  {
+                    label: 'Health',
+                    value: (
+                      <SpecialistHealthBadge health={specialist.health} />
+                    ),
+                  },
+                  {
+                    label: 'Clear threshold',
+                    value: String(specialist.clearThreshold),
+                  },
+                ]}
+              />
+            )}
+          </DetailSection>
+        </>
       ) : null}
       </div>
 
@@ -876,17 +850,6 @@ function AgentDetail({
         onCreated={(quota) => {
           onQuotaCreated(quota)
           setQuotaWizardOpen(false)
-        }}
-      />
-
-      <CreateRulePackWizard
-        open={packWizardOpen}
-        lockedAgentId={agent.id}
-        existingNames={allRulePackNames}
-        onClose={() => setPackWizardOpen(false)}
-        onCreated={(pack) => {
-          onRulePackCreated(pack)
-          openPackWorkspace(pack, true)
         }}
       />
       </div>
@@ -955,7 +918,7 @@ function PostureTab({
   agent,
   posture,
   quotas,
-  rulePackCount,
+  ruleCount,
   onGoAccess,
   onGoRules,
   onGoLimits,
@@ -963,7 +926,7 @@ function PostureTab({
   agent: Agent
   posture: ReturnType<typeof effectiveAgentPosture>
   quotas: RateLimitQuota[]
-  rulePackCount: number
+  ruleCount: number
   onGoAccess: () => void
   onGoRules: () => void
   onGoLimits: () => void
@@ -1082,7 +1045,12 @@ function PostureTab({
               Most called by this agent
             </p>
             {metrics.topTools.length === 0 ? (
-              <p className="text-muted-foreground mt-3 text-xs">No calls yet.</p>
+              <EmptyState
+                compact
+                className="mt-3"
+                title="No calls yet"
+                description="Usage shows up here once this agent starts invoking tools."
+              />
             ) : (
               <ul className="mt-3 flex flex-col gap-2">
                 {metrics.topTools.map((tool) => {
@@ -1163,8 +1131,8 @@ function PostureTab({
               value: String(agent.mcpServerIds.length),
             },
             {
-              label: 'Rule packs',
-              value: String(rulePackCount),
+              label: 'Rules',
+              value: String(ruleCount),
             },
             {
               label: 'Access gaps',

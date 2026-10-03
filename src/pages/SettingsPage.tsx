@@ -2,6 +2,8 @@ import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { RiMailSendLine } from '@remixicon/react'
 
 import { formatTimestamp } from '@/components/list/DetailMeta'
+import { EmptyState } from '@/components/list/EmptyState'
+import { SettingsSkeleton } from '@/components/list/ListSkeletons'
 import { SortableTableHead } from '@/components/list/SortableTableHead'
 import {
   OperatorRoleBadge,
@@ -19,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import {
   applyTableSort,
   nextSortState,
@@ -56,6 +59,7 @@ const OPERATOR_SORT_COLUMNS: SortColumnDef<Operator>[] = [
 ]
 
 export function SettingsPage() {
+  const loading = useSimulatedLoading()
   const [workspace, setWorkspace] = useState(mockWorkspaceSettings)
   const [operators, setOperators] = useState(mockOperators)
   const [sort, setSort] = useState<TableSortState>(null)
@@ -107,6 +111,8 @@ export function SettingsPage() {
       prev.map((op) => (op.id === id ? { ...op, status } : op)),
     )
   }
+
+  if (loading) return <SettingsSkeleton />
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -266,89 +272,96 @@ export function SettingsPage() {
         ) : null}
 
         <div className="min-w-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <SortableTableHead
-                  columnId="name"
-                  label="Name"
-                  sort={sort}
-                  onSort={(id) => setSort((s) => nextSortState(s, id))}
-                />
-                <SortableTableHead
-                  columnId="email"
-                  label="Email"
-                  sort={sort}
-                  onSort={(id) => setSort((s) => nextSortState(s, id))}
-                />
-                <SortableTableHead
-                  columnId="role"
-                  label="Role"
-                  sort={sort}
-                  onSort={(id) => setSort((s) => nextSortState(s, id))}
-                />
-                <SortableTableHead
-                  columnId="status"
-                  label="Status"
-                  sort={sort}
-                  onSort={(id) => setSort((s) => nextSortState(s, id))}
-                />
-                <SortableTableHead
-                  columnId="invited"
-                  label="Invited"
-                  sort={sort}
-                  onSort={(id) => setSort((s) => nextSortState(s, id))}
-                />
-                <SortableTableHead
-                  columnId="last_active"
-                  label="Last active"
-                  sort={sort}
-                  onSort={(id) => setSort((s) => nextSortState(s, id))}
-                />
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {visibleOperators.map((op) => (
-                <TableRow key={op.id}>
-                  <TableCell className="font-medium">{op.name}</TableCell>
-                  <TableCell className="font-mono">{op.email}</TableCell>
-                  <TableCell>
-                    <OperatorRoleBadge role={op.role} />
-                  </TableCell>
-                  <TableCell>
-                    <OperatorStatusBadge status={op.status} />
-                  </TableCell>
-                  <TableCell>{formatTimestamp(op.invitedAt)}</TableCell>
-                  <TableCell>
-                    {op.lastActiveAt
-                      ? formatTimestamp(op.lastActiveAt)
-                      : '—'}
-                  </TableCell>
-                  <TableCell>
-                    <OperatorActions
-                      operator={op}
-                      onDisable={() => setOperatorStatus(op.id, 'disabled')}
-                      onEnable={() => setOperatorStatus(op.id, 'active')}
-                      onResend={() => {
-                        setOperators((prev) =>
-                          prev.map((row) =>
-                            row.id === op.id
-                              ? {
-                                  ...row,
-                                  status: 'invited',
-                                  invitedAt: new Date().toISOString(),
-                                }
-                              : row,
-                          ),
-                        )
-                      }}
-                    />
-                  </TableCell>
+          {visibleOperators.length === 0 ? (
+            <EmptyState
+              title="No operators"
+              description="Invite someone above to give them access to this workspace."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <SortableTableHead
+                    columnId="name"
+                    label="Name"
+                    sort={sort}
+                    onSort={(id) => setSort((s) => nextSortState(s, id))}
+                  />
+                  <SortableTableHead
+                    columnId="email"
+                    label="Email"
+                    sort={sort}
+                    onSort={(id) => setSort((s) => nextSortState(s, id))}
+                  />
+                  <SortableTableHead
+                    columnId="role"
+                    label="Role"
+                    sort={sort}
+                    onSort={(id) => setSort((s) => nextSortState(s, id))}
+                  />
+                  <SortableTableHead
+                    columnId="status"
+                    label="Status"
+                    sort={sort}
+                    onSort={(id) => setSort((s) => nextSortState(s, id))}
+                  />
+                  <SortableTableHead
+                    columnId="invited"
+                    label="Invited"
+                    sort={sort}
+                    onSort={(id) => setSort((s) => nextSortState(s, id))}
+                  />
+                  <SortableTableHead
+                    columnId="last_active"
+                    label="Last active"
+                    sort={sort}
+                    onSort={(id) => setSort((s) => nextSortState(s, id))}
+                  />
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {visibleOperators.map((op) => (
+                  <TableRow key={op.id}>
+                    <TableCell className="font-medium">{op.name}</TableCell>
+                    <TableCell className="font-mono">{op.email}</TableCell>
+                    <TableCell>
+                      <OperatorRoleBadge role={op.role} />
+                    </TableCell>
+                    <TableCell>
+                      <OperatorStatusBadge status={op.status} />
+                    </TableCell>
+                    <TableCell>{formatTimestamp(op.invitedAt)}</TableCell>
+                    <TableCell>
+                      {op.lastActiveAt
+                        ? formatTimestamp(op.lastActiveAt)
+                        : '—'}
+                    </TableCell>
+                    <TableCell>
+                      <OperatorActions
+                        operator={op}
+                        onDisable={() => setOperatorStatus(op.id, 'disabled')}
+                        onEnable={() => setOperatorStatus(op.id, 'active')}
+                        onResend={() => {
+                          setOperators((prev) =>
+                            prev.map((row) =>
+                              row.id === op.id
+                                ? {
+                                    ...row,
+                                    status: 'invited',
+                                    invitedAt: new Date().toISOString(),
+                                  }
+                                : row,
+                            ),
+                          )
+                        }}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </Panel>
     </div>

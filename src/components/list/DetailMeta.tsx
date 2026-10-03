@@ -17,7 +17,7 @@ export function DetailHeader({
 }) {
   return (
     <div
-      className={`border-border flex shrink-0 items-start justify-between gap-4 border-b py-4 ${DETAIL_INSET_HEADER}`}
+      className={`border-border flex shrink-0 flex-col gap-3 border-b py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4 ${DETAIL_INSET_HEADER}`}
     >
       <div className="min-w-0 flex-1">
         <h2
@@ -33,7 +33,9 @@ export function DetailHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="flex shrink-0 items-center gap-2 pt-0.5">{actions}</div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:pt-0.5">
+          {actions}
+        </div>
       ) : null}
     </div>
   )
@@ -55,7 +57,7 @@ export function DetailSection({
     <section
       className={`border-border flex flex-col gap-3 border-b py-4 last:border-b-0 ${DETAIL_INSET_X}`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
         <div className="min-w-0 flex-1">
           <h3 className="text-foreground text-[13px] font-medium tracking-tight">
             {title}
@@ -67,7 +69,7 @@ export function DetailSection({
           ) : null}
         </div>
         {actions ? (
-          <div className="flex shrink-0 items-center gap-2 pt-0.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:pt-0.5">
             {actions}
           </div>
         ) : null}
@@ -159,21 +161,13 @@ export function humanizeDecisionOutcome(outcome: string): string {
   return DECISION_OUTCOME_LABELS[outcome] ?? outcome.replaceAll('_', ' ')
 }
 
-/** Prefer the human phrase after " · "; soften pack:/RBAC: prefixes. */
+/** Soften RBAC: prefixes; capitalize plain rule names for display. */
 export function humanizeRuleRef(raw: string): string {
-  const parts = raw.split(' · ')
-  if (parts.length > 1) {
-    const rest = parts.slice(1).join(' · ').trim()
-    if (rest) return rest.charAt(0).toUpperCase() + rest.slice(1)
-  }
   if (raw.startsWith('RBAC:')) {
     return raw.replace(/^RBAC:\s*/, 'Access: ')
   }
-  if (raw.startsWith('pack:')) {
-    const after = raw.replace(/^pack:[^\s·]+/, '').replace(/^[·\s]+/, '').trim()
-    if (after) return after.charAt(0).toUpperCase() + after.slice(1)
-  }
-  return raw
+  if (!raw) return raw
+  return raw.charAt(0).toUpperCase() + raw.slice(1)
 }
 
 export function formatRelativeAge(seconds: number): string {

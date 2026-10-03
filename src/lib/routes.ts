@@ -5,6 +5,7 @@ import {
   RiRobot2Line,
   RiServerLine,
   RiShieldCheckLine,
+  RiWebhookLine,
 } from '@remixicon/react'
 
 /**
@@ -23,6 +24,8 @@ export const routes = {
   mcp: '/mcp',
   audit: '/audit',
   auditDetail: (id: string) => `/audit/${id}`,
+  webhooks: '/webhooks',
+  webhookDetail: (id: string) => `/webhooks/${id}`,
   specialists: '/specialists',
   specialistDetail: (id: string) => `/specialists/${id}`,
   simulator: '/simulator',
@@ -37,6 +40,7 @@ export type AppRoute =
   | '/agents'
   | '/mcp'
   | '/audit'
+  | '/webhooks'
   | '/specialists'
   | '/simulator'
   | '/settings'
@@ -80,6 +84,11 @@ export const navSections: NavSection[] = [
         label: 'Audit',
         path: routes.audit,
         icon: RiFileList3Line,
+      },
+      {
+        label: 'Webhooks',
+        path: routes.webhooks,
+        icon: RiWebhookLine,
       },
       {
         label: 'Agents',

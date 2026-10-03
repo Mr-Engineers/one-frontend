@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  RiArrowDownSLine,
   RiArrowLeftLine,
+  RiArrowRightSLine,
   RiCheckLine,
   RiCloudLine,
   RiCodeBoxLine,
@@ -10,11 +12,13 @@ import {
   RiLoader4Line,
   RiServerLine,
   RiTerminalBoxLine,
+  RiUploadCloud2Line,
 } from '@remixicon/react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import {
   HOSTED_SOURCE_OPTIONS,
@@ -22,6 +26,7 @@ import {
   mockDiscoverHosted,
   mockDiscoverRemote,
   type HostedAuthMethod,
+  type HostedDiscoveryResult,
   type HostedSourceKind,
   type McpServer,
   type ProposedHostedTool,
@@ -48,7 +53,7 @@ type DiscoverLog = {
 }
 
 type DiscoveryResult = ReturnType<typeof mockDiscoverRemote>
-type HostedDiscovery = ReturnType<typeof mockDiscoverHosted>
+type HostedDiscovery = HostedDiscoveryResult
 
 const DISCOVER_STEPS = [
   'Resolving endpoint',
@@ -109,7 +114,11 @@ export function ConnectMcpWizard({
   const [hostedAuth, setHostedAuth] = useState<HostedAuthMethod>('api_key')
   const [hostedDiscovery, setHostedDiscovery] =
     useState<HostedDiscovery | null>(null)
+  const [proposedTools, setProposedTools] = useState<ProposedHostedTool[]>([])
   const [enabledTools, setEnabledTools] = useState<Record<string, boolean>>({})
+  const [openApiText, setOpenApiText] = useState<string | null>(null)
+  const [openApiFileName, setOpenApiFileName] = useState<string | null>(null)
+  const [openApiError, setOpenApiError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) {
@@ -122,7 +131,11 @@ export function ConnectMcpWizard({
       setHostedSource(null)
       setHostedAuth('api_key')
       setHostedDiscovery(null)
+      setProposedTools([])
       setEnabledTools({})
+      setOpenApiText(null)
+      setOpenApiFileName(null)
+      setOpenApiError(null)
     }
   }, [open])
 
@@ -138,14 +151,18 @@ export function ConnectMcpWizard({
   useEffect(() => {
     if (step !== 'hosted_scanning' || !hostedSource) return
     return runStagedLogs(SCAN_STEPS, setLogs, () => {
-      const result = mockDiscoverHosted(hostedSource, name, url)
+      const result = mockDiscoverHosted(hostedSource, name, url, {
+        openApiText: openApiText ?? undefined,
+        specFileName: openApiFileName ?? undefined,
+      })
       setHostedDiscovery(result)
+      setProposedTools(result.tools)
       const next: Record<string, boolean> = {}
       for (const t of result.tools) next[t.name] = t.defaultEnabled
       setEnabledTools(next)
       setStep('hosted_tools')
     })
-  }, [step, hostedSource, name, url])
+  }, [step, hostedSource, name, url, openApiText, openApiFileName])
 
   useEffect(() => {
     if (step !== 'hosted_provision') return
@@ -173,7 +190,12 @@ export function ConnectMcpWizard({
   }
 
   function startHostedScan() {
-    if (!url.trim() || !hostedSource) return
+    if (!hostedSource) return
+    if (hostedSource === 'openapi') {
+      if (!openApiText && !url.trim()) return
+    } else if (!url.trim()) {
+      return
+    }
     setStep('hosted_scanning')
   }
 
@@ -197,7 +219,7 @@ export function ConnectMcpWizard({
 
   function finishHostedConnect() {
     if (!hostedDiscovery) return
-    const tools = hostedDiscovery.tools
+    const tools = proposedTools
       .filter((t) => enabledTools[t.name])
       .map((t) => t.name)
     onConnected(
@@ -290,9 +312,40 @@ export function ConnectMcpWizard({
             name={name}
             url={url}
             auth={hostedAuth}
+            openApiFileName={openApiFileName}
+            openApiError={openApiError}
             onName={setName}
             onUrl={setUrl}
             onAuth={setHostedAuth}
+            onOpenApiFile={async (file) => {
+              setOpenApiError(null)
+              if (!file) {
+                setOpenApiText(null)
+                setOpenApiFileName(null)
+                return
+              }
+              if (
+                file.name.endsWith('.yaml') ||
+                file.name.endsWith('.yml')
+              ) {
+                setOpenApiError(
+                  'YAML upload is not supported yet — use openapi.json.',
+                )
+                setOpenApiText(null)
+                setOpenApiFileName(null)
+                return
+              }
+              try {
+                const text = await file.text()
+                JSON.parse(text)
+                setOpenApiText(text)
+                setOpenApiFileName(file.name)
+              } catch {
+                setOpenApiError('Could not parse file as JSON.')
+                setOpenApiText(null)
+                setOpenApiFileName(null)
+              }
+            }}
             onSubmit={startHostedScan}
           />
         ) : null}
@@ -300,7 +353,7 @@ export function ConnectMcpWizard({
         {step === 'hosted_scanning' ? (
           <StagedProgress
             title="Scanning source"
-            subtitle={url}
+            subtitle={openApiFileName ?? url}
             logs={logs}
           />
         ) : null}
@@ -308,6 +361,7 @@ export function ConnectMcpWizard({
         {step === 'hosted_tools' && hostedDiscovery ? (
           <HostedToolsStep
             discovery={hostedDiscovery}
+            tools={proposedTools}
             enabled={enabledTools}
             selectedCount={selectedCount}
             onToggle={(tool) =>
@@ -319,11 +373,27 @@ export function ConnectMcpWizard({
             onToggleRisk={(risk, on) => {
               setEnabledTools((prev) => {
                 const next = { ...prev }
-                for (const t of hostedDiscovery.tools) {
+                for (const t of proposedTools) {
                   if (t.risk === risk) next[t.name] = on
                 }
                 return next
               })
+            }}
+            onToggleGroup={(group, on) => {
+              setEnabledTools((prev) => {
+                const next = { ...prev }
+                for (const t of proposedTools) {
+                  if ((t.group ?? 'Other') === group) next[t.name] = on
+                }
+                return next
+              })
+            }}
+            onDescriptionChange={(toolName, description) => {
+              setProposedTools((prev) =>
+                prev.map((t) =>
+                  t.name === toolName ? { ...t, description } : t,
+                ),
+              )
             }}
             onContinue={() => setStep('hosted_provision')}
           />
@@ -342,7 +412,7 @@ export function ConnectMcpWizard({
         ) : null}
 
         {step === 'hosted_review' && hostedDiscovery ? (
-          <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10">
+          <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10">
             <div className="flex items-center gap-2">
               <RiCheckLine className="text-primary size-5" />
               <p className="text-sm font-medium">{hostedDiscovery.name}</p>
@@ -358,14 +428,21 @@ export function ConnectMcpWizard({
                 <span className="font-mono text-[11px]">{selectedCount}</span>
               </div>
               <ul className="divide-border divide-y">
-                {hostedDiscovery.tools
+                {proposedTools
                   .filter((t) => enabledTools[t.name])
                   .map((tool) => (
                     <li
                       key={tool.name}
                       className="flex items-center justify-between gap-3 px-3 py-2"
                     >
-                      <span className="font-mono text-[12px]">{tool.name}</span>
+                      <span className="min-w-0">
+                        <span className="block text-[12px] font-medium">
+                          {tool.title ?? tool.name}
+                        </span>
+                        <span className="text-muted-foreground font-mono text-[11px]">
+                          {tool.subtitle ?? tool.name}
+                        </span>
+                      </span>
                       <RiskPill risk={tool.risk} />
                     </li>
                   ))}
@@ -383,7 +460,7 @@ export function ConnectMcpWizard({
 
         {step === 'remote_form' ? (
           <form
-            className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10"
+            className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10"
             onSubmit={(e) => {
               e.preventDefault()
               startRemoteDiscover()
@@ -427,7 +504,7 @@ export function ConnectMcpWizard({
         ) : null}
 
         {step === 'auth' ? (
-          <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10">
+          <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10">
             {authPhase === 'prompt' ? (
               <>
                 <div>
@@ -479,7 +556,7 @@ export function ConnectMcpWizard({
         ) : null}
 
         {step === 'review' && discovery ? (
-          <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10">
+          <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10">
             <div>
               <p className="text-sm font-medium">{discovery.name}</p>
               <p className="text-muted-foreground mt-1 font-mono text-xs">
@@ -591,7 +668,7 @@ function KindStep({
   onHosted: () => void
 }) {
   return (
-    <div className="mx-auto grid w-full max-w-3xl shrink-0 gap-3 px-6 py-10 sm:grid-cols-2">
+    <div className="mx-auto grid w-full max-w-3xl shrink-0 gap-3 px-4 py-8 sm:px-6 sm:py-10 sm:grid-cols-2">
       <button
         type="button"
         onClick={onRemote}
@@ -635,7 +712,7 @@ function HostedSourceStep({
   onSelect: (id: HostedSourceKind) => void
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-6 py-10">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-8 sm:px-6 sm:py-10">
       <div>
         <p className="text-sm font-medium">What are you connecting?</p>
         <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
@@ -679,31 +756,41 @@ function HostedFormStep({
   name,
   url,
   auth,
+  openApiFileName,
+  openApiError,
   onName,
   onUrl,
   onAuth,
+  onOpenApiFile,
   onSubmit,
 }: {
   source: HostedSourceKind
   name: string
   url: string
   auth: HostedAuthMethod
+  openApiFileName: string | null
+  openApiError: string | null
   onName: (v: string) => void
   onUrl: (v: string) => void
   onAuth: (v: HostedAuthMethod) => void
+  onOpenApiFile: (file: File | null) => void | Promise<void>
   onSubmit: () => void
 }) {
   const option = HOSTED_SOURCE_OPTIONS.find((o) => o.id === source)!
+  const isOpenApi = source === 'openapi'
   const authOptions: { id: HostedAuthMethod; label: string }[] = [
     { id: 'api_key', label: 'API key' },
     { id: 'oauth', label: 'OAuth' },
     { id: 'mtls', label: 'mTLS' },
     { id: 'none', label: 'None' },
   ]
+  const canSubmit = isOpenApi
+    ? !!openApiFileName || !!url.trim()
+    : !!url.trim()
 
   return (
     <form
-      className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10"
+      className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10"
       onSubmit={(e) => {
         e.preventDefault()
         onSubmit()
@@ -712,7 +799,9 @@ function HostedFormStep({
       <div>
         <p className="text-sm font-medium">{option.label}</p>
         <p className="text-muted-foreground mt-1 text-xs">
-          How Modus reaches your system (mock — no real network call).
+          {isOpenApi
+            ? 'Upload a spec to map endpoints into tools. Without a file we use a sample catalog.'
+            : 'How Modus reaches your system (mock — no real network call).'}
         </p>
       </div>
 
@@ -728,17 +817,69 @@ function HostedFormStep({
         />
       </div>
 
+      {isOpenApi ? (
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-muted-foreground font-mono text-[11px]">
+            openapi spec
+          </Label>
+          <label
+            className={cn(
+              'border-border hover:bg-muted/20 flex cursor-pointer flex-col items-start gap-2 border px-3 py-3 transition-colors',
+              openApiFileName && 'border-foreground/30 bg-muted/20',
+            )}
+          >
+            <span className="flex items-center gap-2 text-sm">
+              <RiUploadCloud2Line className="text-primary size-4" />
+              {openApiFileName ?? 'Upload openapi.json'}
+            </span>
+            <span className="text-muted-foreground text-xs">
+              JSON OpenAPI 3.x / Swagger. Paths become tools.
+            </span>
+            <Input
+              type="file"
+              accept=".json,application/json"
+              className="sr-only"
+              onChange={(e) => {
+                void onOpenApiFile(e.target.files?.[0] ?? null)
+              }}
+            />
+          </label>
+          {openApiFileName ? (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground self-start font-mono text-[11px] underline-offset-2 hover:underline"
+              onClick={() => void onOpenApiFile(null)}
+            >
+              Clear file
+            </button>
+          ) : null}
+          {openApiError ? (
+            <p className="text-destructive text-xs">{openApiError}</p>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-1.5">
         <Label className="text-muted-foreground font-mono text-[11px]">
-          {source === 'package' ? 'image / package' : 'base url'}
+          {source === 'package'
+            ? 'image / package'
+            : isOpenApi
+              ? 'api base url'
+              : 'base url'}
         </Label>
         <Input
           value={url}
           onChange={(e) => onUrl(e.target.value)}
           placeholder={option.urlPlaceholder}
-          required
+          required={!isOpenApi}
           className="font-mono"
         />
+        {isOpenApi ? (
+          <p className="text-muted-foreground text-xs">
+            Where Modus calls your API. Optional if the spec defines servers —
+            leave empty to use a sample when no file is uploaded.
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -768,8 +909,8 @@ function HostedFormStep({
         </p>
       </div>
 
-      <Button type="submit" disabled={!url.trim()}>
-        Scan & propose tools
+      <Button type="submit" disabled={!canSubmit}>
+        {isOpenApi ? 'Map spec → tools' : 'Scan & propose tools'}
       </Button>
     </form>
   )
@@ -777,27 +918,63 @@ function HostedFormStep({
 
 function HostedToolsStep({
   discovery,
+  tools,
   enabled,
   selectedCount,
   onToggle,
   onToggleRisk,
+  onToggleGroup,
+  onDescriptionChange,
   onContinue,
 }: {
   discovery: HostedDiscovery
+  tools: ProposedHostedTool[]
   enabled: Record<string, boolean>
   selectedCount: number
   onToggle: (tool: string) => void
   onToggleRisk: (risk: ProposedToolRisk, on: boolean) => void
+  onToggleGroup: (group: string, on: boolean) => void
+  onDescriptionChange: (tool: string, description: string) => void
   onContinue: () => void
 }) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const isOpenApi = discovery.source === 'openapi'
+
+  const groups = useMemo(() => {
+    const map = new Map<string, ProposedHostedTool[]>()
+    for (const tool of tools) {
+      const key = tool.group ?? 'Other'
+      const list = map.get(key) ?? []
+      list.push(tool)
+      map.set(key, list)
+    }
+    return [...map.entries()]
+  }, [tools])
+
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-6 py-10">
+    <div
+      className={cn(
+        'mx-auto flex w-full flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10',
+        isOpenApi ? 'max-w-2xl' : 'max-w-lg',
+      )}
+    >
       <div>
-        <p className="text-sm font-medium">What can agents do?</p>
-        <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-          Deny by default for writes. Enable only what this MCP should expose —
-          roles can narrow further later.
+        <p className="text-sm font-medium">
+          {isOpenApi ? 'Review mapped tools' : 'What can agents do?'}
         </p>
+        <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+          {isOpenApi
+            ? 'Titles and structure come from the spec. Edit AI descriptions, expand for parameters, and turn off tools you do not want exposed.'
+            : 'Deny by default for writes. Enable only what this MCP should expose — roles can narrow further later.'}
+        </p>
+        {discovery.specTitle ? (
+          <p className="text-muted-foreground mt-2 font-mono text-[11px]">
+            {discovery.specTitle}
+            {discovery.specVersion ? ` · v${discovery.specVersion}` : ''}
+            {' · '}
+            {tools.length} operations
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-1.5">
@@ -825,19 +1002,64 @@ function HostedToolsStep({
             proposed tools
           </span>
           <span className="font-mono text-[11px]">
-            {selectedCount} / {discovery.tools.length}
+            {selectedCount} / {tools.length}
           </span>
         </div>
-        <ul className="divide-border max-h-[min(50vh,22rem)] divide-y overflow-y-auto">
-          {discovery.tools.map((tool) => (
-            <ToolToggleRow
-              key={tool.name}
-              tool={tool}
-              checked={!!enabled[tool.name]}
-              onToggle={() => onToggle(tool.name)}
-            />
-          ))}
-        </ul>
+        <div className="max-h-[min(60vh,28rem)] overflow-y-auto">
+          {groups.map(([group, groupTools]) => {
+            const enabledInGroup = groupTools.filter(
+              (t) => enabled[t.name],
+            ).length
+            return (
+              <div key={group} className="border-border border-b last:border-b-0">
+                <div className="bg-muted/30 flex items-center justify-between gap-2 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-[12px] font-medium">{group}</p>
+                    <p className="text-muted-foreground font-mono text-[10px]">
+                      {enabledInGroup}/{groupTools.length} enabled
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground h-6 px-1.5 font-mono text-[10px]"
+                      onClick={() => onToggleGroup(group, true)}
+                    >
+                      all
+                    </button>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground h-6 px-1.5 font-mono text-[10px]"
+                      onClick={() => onToggleGroup(group, false)}
+                    >
+                      none
+                    </button>
+                  </div>
+                </div>
+                <ul className="divide-border divide-y">
+                  {groupTools.map((tool) => (
+                    <ToolEditorRow
+                      key={tool.name}
+                      tool={tool}
+                      checked={!!enabled[tool.name]}
+                      expanded={expanded === tool.name}
+                      showStructure={isOpenApi || !!tool.subtitle}
+                      onToggle={() => onToggle(tool.name)}
+                      onExpand={() =>
+                        setExpanded((cur) =>
+                          cur === tool.name ? null : tool.name,
+                        )
+                      }
+                      onDescriptionChange={(description) =>
+                        onDescriptionChange(tool.name, description)
+                      }
+                    />
+                  ))}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <Button
@@ -851,34 +1073,193 @@ function HostedToolsStep({
   )
 }
 
-function ToolToggleRow({
+function ToolEditorRow({
   tool,
   checked,
+  expanded,
+  showStructure,
   onToggle,
+  onExpand,
+  onDescriptionChange,
 }: {
   tool: ProposedHostedTool
   checked: boolean
+  expanded: boolean
+  showStructure: boolean
   onToggle: () => void
+  onExpand: () => void
+  onDescriptionChange: (description: string) => void
 }) {
+  const title = tool.title ?? tool.name
+  const subtitle = tool.subtitle ?? tool.name
+
   return (
-    <li>
-      <label className="hover:bg-muted/20 flex cursor-pointer items-start gap-3 px-3 py-2.5 transition-colors">
+    <li className={cn(!checked && 'opacity-55')}>
+      <div className="hover:bg-muted/20 flex items-start gap-2 px-3 py-2.5 transition-colors">
         <input
           type="checkbox"
-          className="border-border text-primary mt-0.5 size-3.5 accent-current"
+          className="border-border text-primary mt-1 size-3.5 shrink-0 accent-current"
           checked={checked}
           onChange={onToggle}
+          aria-label={`Enable ${title}`}
         />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center justify-between gap-2">
-            <span className="font-mono text-[12px]">{tool.name}</span>
-            <RiskPill risk={tool.risk} />
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={onExpand}
+          aria-expanded={expanded}
+        >
+          <span className="flex items-start justify-between gap-2">
+            <span className="min-w-0">
+              <span className="block text-[12px] font-medium">{title}</span>
+              <span className="text-muted-foreground mt-0.5 block font-mono text-[11px]">
+                {subtitle}
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1.5">
+              <RiskPill risk={tool.risk} />
+              {expanded ? (
+                <RiArrowDownSLine className="text-muted-foreground size-4" />
+              ) : (
+                <RiArrowRightSLine className="text-muted-foreground size-4" />
+              )}
+            </span>
           </span>
-          <span className="text-muted-foreground mt-0.5 block text-xs">
-            {tool.description}
-          </span>
-        </span>
-      </label>
+          {!expanded ? (
+            <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
+              {tool.description}
+            </span>
+          ) : null}
+        </button>
+      </div>
+
+      {expanded ? (
+        <div className="border-border bg-muted/15 space-y-3 border-t px-3 py-3 pl-10">
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-muted-foreground font-mono text-[11px]">
+              ai description
+            </Label>
+            <Textarea
+              value={tool.description}
+              onChange={(e) => onDescriptionChange(e.target.value)}
+              rows={3}
+              className="min-h-18"
+            />
+            <p className="text-muted-foreground text-[11px]">
+              Shown to the model when this tool is available. Be precise about
+              when to call it and what not to do.
+            </p>
+          </div>
+
+          {tool.originalDescription &&
+          tool.originalDescription !== tool.description ? (
+            <div>
+              <p className="text-muted-foreground font-mono text-[10px]">
+                from openapi
+              </p>
+              <p className="text-muted-foreground mt-0.5 text-xs leading-relaxed">
+                {tool.originalDescription}
+              </p>
+            </div>
+          ) : null}
+
+          {showStructure ? (
+            <div className="space-y-2">
+              <p className="text-muted-foreground font-mono text-[10px]">
+                structure
+              </p>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[11px]">
+                <dt className="text-muted-foreground">tool</dt>
+                <dd>{tool.name}</dd>
+                {tool.operationId ? (
+                  <>
+                    <dt className="text-muted-foreground">operationId</dt>
+                    <dd>{tool.operationId}</dd>
+                  </>
+                ) : null}
+                {tool.method && tool.path ? (
+                  <>
+                    <dt className="text-muted-foreground">endpoint</dt>
+                    <dd>
+                      {tool.method} {tool.path}
+                    </dd>
+                  </>
+                ) : null}
+              </dl>
+
+              {tool.parameters && tool.parameters.length > 0 ? (
+                <div className="border-border border">
+                  <div className="border-border text-muted-foreground border-b px-2 py-1 font-mono text-[10px]">
+                    parameters
+                  </div>
+                  <ul className="divide-border divide-y">
+                    {tool.parameters.map((p) => (
+                      <li
+                        key={`${p.in}:${p.name}`}
+                        className="px-2 py-1.5 text-[11px]"
+                      >
+                        <span className="font-mono">
+                          {p.name}
+                          {p.required ? (
+                            <span className="text-destructive"> *</span>
+                          ) : null}
+                        </span>
+                        <span className="text-muted-foreground ml-2 font-mono">
+                          {p.in}
+                          {p.schemaType ? ` · ${p.schemaType}` : ''}
+                        </span>
+                        {p.description ? (
+                          <span className="text-muted-foreground mt-0.5 block text-xs">
+                            {p.description}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {tool.requestBody ? (
+                <div className="border-border border px-2 py-1.5 text-[11px]">
+                  <span className="text-muted-foreground font-mono text-[10px]">
+                    request body
+                    {tool.requestBody.required ? ' · required' : ''}
+                  </span>
+                  <p className="mt-0.5 font-mono">
+                    {tool.requestBody.contentTypes.join(', ') || 'body'}
+                  </p>
+                  {tool.requestBody.summary ? (
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      {tool.requestBody.summary}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {tool.responses && tool.responses.length > 0 ? (
+                <div className="border-border border">
+                  <div className="border-border text-muted-foreground border-b px-2 py-1 font-mono text-[10px]">
+                    responses
+                  </div>
+                  <ul className="divide-border divide-y">
+                    {tool.responses.map((r) => (
+                      <li
+                        key={r.status}
+                        className="flex gap-2 px-2 py-1.5 font-mono text-[11px]"
+                      >
+                        <span className="shrink-0">{r.status}</span>
+                        <span className="text-muted-foreground">
+                          {r.description || '—'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </li>
   )
 }
@@ -908,7 +1289,7 @@ function StagedProgress({
   logs: DiscoverLog[]
 }) {
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-6 py-10">
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10">
       <div>
         <p className="text-sm font-medium">{title}</p>
         {subtitle ? (

@@ -37,12 +37,8 @@ export function previewRule(rule: Pick<PolicyRule, 'tool' | 'when' | 'then'>): s
   return `${rule.tool} when ${previewCondition(rule.when)} → ${rule.then}`
 }
 
-export function matchedRuleLabel(
-  packName: string,
-  version: string,
-  ruleName: string,
-): string {
-  return `pack:${packName}/${version} · ${ruleName}`
+export function matchedRuleLabel(ruleName: string): string {
+  return ruleName
 }
 
 export function outcomeLabel(outcome: RuleOutcome | 'no_match'): string {

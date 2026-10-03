@@ -11,7 +11,7 @@ export const mockAuditEvents: AuditEvent[] = [
     decision: 'allow',
     decisionChain: [
       { stage: 'rbac', outcome: 'pass', detail: 'Role purchasing-operator' },
-      { stage: 'rules', outcome: 'allow', detail: 'pack:purchasing/v3 · search allow' },
+      { stage: 'rules', outcome: 'allow', detail: 'search allow' },
       { stage: 'specialist', outcome: 'skipped', detail: 'Rule short-circuit' },
       { stage: 'human', outcome: 'skipped', detail: 'Not required' },
     ],
@@ -29,7 +29,7 @@ export const mockAuditEvents: AuditEvent[] = [
       {
         stage: 'rules',
         outcome: 'needs_ai',
-        detail: 'pack:purchasing/v3 · elevated spend or non-HQ',
+        detail: 'elevated spend or non-HQ',
       },
       {
         stage: 'specialist',
@@ -57,7 +57,7 @@ export const mockAuditEvents: AuditEvent[] = [
       {
         stage: 'rules',
         outcome: 'deny',
-        detail: 'pack:support/v2 · close without resolution',
+        detail: 'close without resolution',
       },
       { stage: 'specialist', outcome: 'skipped', detail: 'Rule short-circuit' },
       { stage: 'human', outcome: 'skipped', detail: 'Denied by rules' },
@@ -73,7 +73,7 @@ export const mockAuditEvents: AuditEvent[] = [
     decision: 'allow',
     decisionChain: [
       { stage: 'rbac', outcome: 'pass', detail: 'Role purchasing-operator' },
-      { stage: 'rules', outcome: 'allow', detail: 'pack:inventory/v1 · receive allow' },
+      { stage: 'rules', outcome: 'allow', detail: 'receive allow' },
       { stage: 'specialist', outcome: 'skipped', detail: 'Rule short-circuit' },
       { stage: 'human', outcome: 'skipped', detail: 'Not required' },
     ],
@@ -106,7 +106,7 @@ export const mockAuditEvents: AuditEvent[] = [
       {
         stage: 'rules',
         outcome: 'needs_ai',
-        detail: 'pack:support/v2 · external comment',
+        detail: 'external comment',
       },
       {
         stage: 'specialist',

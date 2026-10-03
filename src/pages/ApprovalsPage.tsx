@@ -11,6 +11,8 @@ import {
   formatRelativeAge,
   humanizeRuleRef,
 } from '@/components/list/DetailMeta'
+import { ListEmptyState } from '@/components/list/EmptyState'
+import { TableSkeleton } from '@/components/list/ListSkeletons'
 import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
@@ -23,6 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useListDetailSquash } from '@/hooks/useListDetailSquash'
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import {
   applyTableFilter,
   type FilterColumnDef,
@@ -63,6 +66,7 @@ function humanizeModelChoice(choice: string): string {
 }
 
 export function ApprovalsPage() {
+  const loading = useSimulatedLoading()
   const [approvals, setApprovals] = useState(mockApprovals)
   const [filters, setFilters] = useState<FilterRule[]>([])
   const [sort, setSort] = useState<TableSortState>(null)
@@ -87,8 +91,9 @@ export function ApprovalsPage() {
     closeRow()
   }
 
-  const list = useMemo(
-    () => (
+  const list = useMemo(() => {
+    if (loading) return <TableSkeleton columns={4} rows={8} />
+    return (
       <>
         <TableFilterBar
           columns={APPROVAL_FILTER_COLUMNS}
@@ -97,11 +102,11 @@ export function ApprovalsPage() {
           rowCount={visible.length}
         />
         {visible.length === 0 ? (
-          <p className="text-muted-foreground px-4 py-8 text-xs">
-            {approvals.length === 0
-              ? 'Queue clear — no approvals waiting.'
-              : 'No rows match this filter.'}
-          </p>
+          <ListEmptyState
+            sourceEmpty={approvals.length === 0}
+            title="Queue clear"
+            description="No approvals waiting. Escalations will show up here when a rule needs a human."
+          />
         ) : (
           <Table>
             <TableHeader>
@@ -154,16 +159,16 @@ export function ApprovalsPage() {
           </Table>
         )}
       </>
-    ),
-    [
-      approvals.length,
-      filters,
-      openRow,
-      sort,
-      squash.overlay?.payload.id,
-      visible,
-    ],
-  )
+    )
+  }, [
+    approvals.length,
+    filters,
+    loading,
+    openRow,
+    sort,
+    squash.overlay?.payload.id,
+    visible,
+  ])
 
   return (
     <SquashListArea

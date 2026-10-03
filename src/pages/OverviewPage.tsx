@@ -1,7 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import { EmptyState } from '@/components/list/EmptyState'
+import { OverviewSkeleton } from '@/components/list/ListSkeletons'
 import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import { routes } from '@/lib/routes'
 import { cn } from '@/lib/utils'
 import {
@@ -138,8 +141,11 @@ function CallsOverTimeChart({ series }: { series: CallsBucket[] }) {
 }
 
 export function OverviewPage() {
+  const loading = useSimulatedLoading()
   const m = getOverviewMetrics()
   const decisionTotal = m.decisionSplit.reduce((sum, d) => sum + d.count, 0) || 1
+
+  if (loading) return <OverviewSkeleton />
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -411,7 +417,11 @@ function RankedPanel({
       />
       <div className="px-4 py-3">
         {items.length === 0 ? (
-          <p className="text-muted-foreground text-xs">No activity yet.</p>
+          <EmptyState
+            compact
+            title="No activity yet"
+            description="Rankings fill in as agents start calling tools."
+          />
         ) : (
           <ul className="divide-border flex flex-col divide-y">
             {items.map((item) => (

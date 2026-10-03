@@ -10,6 +10,8 @@ import {
   humanizeDecisionOutcome,
   humanizeDecisionStage,
 } from '@/components/list/DetailMeta'
+import { ListEmptyState } from '@/components/list/EmptyState'
+import { TableSkeleton } from '@/components/list/ListSkeletons'
 import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
@@ -22,6 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useListDetailSquash } from '@/hooks/useListDetailSquash'
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import {
   applyTableFilter,
   type FilterColumnDef,
@@ -62,6 +65,7 @@ const AUDIT_FILTER_COLUMNS: FilterColumnDef<AuditEvent>[] = [
 ]
 
 export function AuditPage() {
+  const loading = useSimulatedLoading()
   const events = mockAuditEvents
   const [filters, setFilters] = useState<FilterRule[]>([])
   const [sort, setSort] = useState<TableSortState>(null)
@@ -83,7 +87,9 @@ export function AuditPage() {
     detailPath: routes.auditDetail,
   })
 
-  const list = (
+  const list = loading ? (
+    <TableSkeleton columns={4} rows={10} />
+  ) : (
     <>
       <TableFilterBar
         columns={AUDIT_FILTER_COLUMNS}
@@ -92,7 +98,11 @@ export function AuditPage() {
         rowCount={visible.length}
       />
       {visible.length === 0 ? (
-        <p className="text-muted-foreground px-4 py-8 text-xs">No events.</p>
+        <ListEmptyState
+          sourceEmpty={events.length === 0}
+          title="No events yet"
+          description="Tool calls that pass through Modus will appear here with their decision chain."
+        />
       ) : (
         <Table>
           <TableHeader>

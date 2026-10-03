@@ -188,6 +188,7 @@ export function RuleEditorPanel({
             onSave({
               id: initial?.id ?? createRuleId(),
               name: name.trim(),
+              agentId,
               tool,
               when,
               then,

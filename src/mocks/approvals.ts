@@ -12,9 +12,7 @@ export const mockApprovals: ApprovalRequest[] = [
     denyProb: 0.38,
     ageSeconds: 42,
     ttlSeconds: 300,
-    matchedRules: [
-      'pack:purchasing/v3 · elevated spend or non-HQ',
-    ],
+    matchedRules: ['elevated spend or non-HQ'],
     modelChoice: 'caution → human',
     argsRedacted: {
       sku: 'NB-A4-80',
@@ -35,7 +33,7 @@ export const mockApprovals: ApprovalRequest[] = [
     denyProb: 0.22,
     ageSeconds: 118,
     ttlSeconds: 180,
-    matchedRules: ['pack:inventory/v1 · large adjust'],
+    matchedRules: ['large adjust'],
     modelChoice: 'caution → human',
     argsRedacted: {
       sku: 'PEN-BLU',
@@ -55,7 +53,7 @@ export const mockApprovals: ApprovalRequest[] = [
     ageSeconds: 205,
     ttlSeconds: 240,
     matchedRules: [
-      'pack:purchasing/v3 · new vendor order',
+      'new vendor order',
       'RBAC: purchasing-operator grants shop.*',
     ],
     modelChoice: 'caution → human',
@@ -77,7 +75,7 @@ export const mockApprovals: ApprovalRequest[] = [
     denyProb: 0.31,
     ageSeconds: 67,
     ttlSeconds: 600,
-    matchedRules: ['pack:support/v2 · priority urgent'],
+    matchedRules: ['priority urgent'],
     modelChoice: 'caution → human',
     argsRedacted: {
       ticket_id: 'T-1842',

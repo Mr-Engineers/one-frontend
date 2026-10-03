@@ -24,9 +24,11 @@ export {
 } from './mcp'
 export type {
   HostedAuthMethod,
+  HostedDiscoveryResult,
   HostedSourceKind,
   HostedSourceOption,
   ProposedHostedTool,
+  ProposedToolParameter,
   ProposedToolRisk,
 } from './mcp'
 export { getAgentOverviewMetrics, getOverviewMetrics } from './overview'
@@ -67,12 +69,10 @@ export {
 export {
   RULE_FIELDS,
   RULE_TOOLS,
-  activeVersionOf,
   condOpLabel,
   condOpNeedsValue,
   countRulesForMcp,
   createConditionId,
-  createPackId,
   createRuleId,
   emptyConditionGroup,
   emptyConditionLeaf,
@@ -83,14 +83,19 @@ export {
   mcpServerForTool,
   mcpsForAgent,
   mockDryRunSamples,
-  mockRulePacks,
+  mockRules,
   operatorsForField,
-  packRuleCount,
-  packStatus,
+  rulesForAgent,
   toolGroupsForAgent,
   toolMatchesGlob,
 } from './rules'
 export { mockSpecialists } from './specialists'
+export {
+  WEBHOOK_EVENTS,
+  createWebhookId,
+  mockWebhooks,
+  webhookEventLabel,
+} from './webhooks'
 export type {
   BudgetBar,
   CallsBucket,
@@ -119,10 +124,12 @@ export type {
   RuleFieldDef,
   RuleFieldType,
   RuleOutcome,
-  RulePack,
-  RulePackVersion,
-  RulePackVersionStatus,
   ServerGrant,
   Specialist,
   SpecialistHealth,
+  Webhook,
+  WebhookDelivery,
+  WebhookDeliveryStatus,
+  WebhookEvent,
+  WebhookStatus,
 } from './types'

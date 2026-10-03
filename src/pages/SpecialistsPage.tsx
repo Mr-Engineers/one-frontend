@@ -6,12 +6,15 @@ import {
   MetaGrid,
   formatTimestamp,
 } from '@/components/list/DetailMeta'
+import { EmptyState } from '@/components/list/EmptyState'
+import { CardGridSkeleton } from '@/components/list/ListSkeletons'
 import { SquashListArea } from '@/components/squash-reveal'
 import {
   AgentBadge,
   SpecialistHealthBadge,
 } from '@/components/status/StatusBadge'
 import { useListDetailSquash } from '@/hooks/useListDetailSquash'
+import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import { routes } from '@/lib/routes'
 import { cn } from '@/lib/utils'
 import { mockSpecialists, type Specialist } from '@/mocks'
@@ -51,6 +54,7 @@ function circuitStatus(spc: Specialist) {
 }
 
 export function SpecialistsPage() {
+  const loading = useSimulatedLoading()
   const specialists = mockSpecialists
   const { squash, openRow, closeRow } = useListDetailSquash<Specialist>({
     listPath: routes.specialists,
@@ -59,8 +63,20 @@ export function SpecialistsPage() {
     detailPath: routes.specialistDetail,
   })
 
-  const list = useMemo(
-    () => (
+  const list = useMemo(() => {
+    if (loading) {
+      return (
+        <>
+          <div className="border-border flex h-9 shrink-0 items-center gap-3 border-b px-3">
+            <span className="text-muted-foreground text-[11px]">
+              AI reviewers that clear routine calls or escalate to a person
+            </span>
+          </div>
+          <CardGridSkeleton cards={4} gridClassName="lg:grid-cols-2" />
+        </>
+      )
+    }
+    return (
       <>
         <div className="border-border flex h-9 shrink-0 items-center gap-3 border-b px-3">
           <span className="text-muted-foreground text-[11px]">
@@ -71,20 +87,26 @@ export function SpecialistsPage() {
           </span>
         </div>
 
-        <div className="grid gap-3 p-4 lg:grid-cols-2">
-          {specialists.map((spc) => (
-            <SpecialistCard
-              key={spc.id}
-              specialist={spc}
-              selected={squash.overlay?.payload.id === spc.id}
-              onOpen={() => openRow(spc)}
-            />
-          ))}
-        </div>
+        {specialists.length === 0 ? (
+          <EmptyState
+            title="No specialists yet"
+            description="Specialists review needs_ai outcomes from rules and clear routine calls or escalate to a person."
+          />
+        ) : (
+          <div className="grid gap-3 p-4 lg:grid-cols-2">
+            {specialists.map((spc) => (
+              <SpecialistCard
+                key={spc.id}
+                specialist={spc}
+                selected={squash.overlay?.payload.id === spc.id}
+                onOpen={() => openRow(spc)}
+              />
+            ))}
+          </div>
+        )}
       </>
-    ),
-    [openRow, specialists, squash.overlay?.payload.id],
-  )
+    )
+  }, [loading, openRow, specialists, squash.overlay?.payload.id])
 
   return (
     <SquashListArea
