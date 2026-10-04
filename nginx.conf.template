@@ -18,16 +18,31 @@ server {
         return 200 "ok\n";
     }
 
-    # API -> backend.  /api/xyz  ->  ${BACKEND_URL}/api/v1/xyz
-    # (to samo mapowanie co proxy w vite.config.ts)
-    #
-    # Statyczny proxy_pass (bez resolvera): nazwę "backend" dostarcza ECS Service Connect
-    # przez /etc/hosts, a nie DNS. Wskazuje ona na lokalny proxy Service Connect,
-    # który sam śledzi zmiany IP tasków backendu, więc restart nginx nie jest potrzebny.
-    # BACKEND_URL musi być bez ścieżki (np. http://backend:8000), żeby przeszedł URI z rewrite.
-    location /api/ {
+    # Statyczne proxy_pass (bez resolvera): nazwy "backend" i "proxy-server" dostarcza
+    # ECS Service Connect przez /etc/hosts, a nie DNS. Wskazują one na lokalny proxy
+    # Service Connect, który sam śledzi zmiany IP tasków, więc restart nginx nie jest potrzebny.
+    # *_URL muszą być bez ścieżki (np. http://backend:8000), żeby przeszedł URI z rewrite.
+
+    # Endpointy one-backendu (health, db-test) -> ${BACKEND_URL}/api/v1/xyz
+    location ~ ^/api/(health|db-test)$ {
         rewrite ^/api/(.*)$ /api/v1/$1 break;
         proxy_pass ${BACKEND_URL};
+
+        proxy_http_version 1.1;
+        proxy_set_header Host              $proxy_host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    60s;
+    }
+
+    # Panel admina (audit, agents, policies, ...) -> proxy-server.
+    # /api/xyz  ->  ${PROXY_SERVER_URL}/api/v1/xyz
+    location /api/ {
+        rewrite ^/api/(.*)$ /api/v1/$1 break;
+        proxy_pass ${PROXY_SERVER_URL};
 
         proxy_http_version 1.1;
         proxy_set_header Host              $proxy_host;
