@@ -12,24 +12,7 @@ export interface paths {
             cookie?: never;
         };
         /** Health check */
-        get: operations["getHealth"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/db-test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Database test */
-        get: operations["getDbTest"];
+        get: operations["health"];
         put?: never;
         post?: never;
         delete?: never;
@@ -45,12 +28,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Org Overview dashboard metrics
-         * @description Aggregated KPIs, decision mix, call series, rankings, and budgets for the Overview page. Time range is first-class via `range` or custom `from`/`to`. See docs/api/overview.md for aggregation semantics.
-         *
-         *     If both `range` and `from`/`to` are sent, the preset wins. Custom range requires both `from` and `to`.
-         */
+        /** Metryki globalne */
         get: operations["getOverview"];
         put?: never;
         post?: never;
@@ -67,62 +45,92 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List agents */
+        /** Lista agentów */
         get: operations["listAgents"];
         put?: never;
-        post?: never;
+        /** Utwórz agenta (z pierwszym kluczem) */
+        post: operations["createAgent"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}": {
+    "/agents/{agent_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
             cookie?: never;
         };
-        /** Get agent */
+        /** Szczegóły agenta */
         get: operations["getAgent"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update agent role or metadata */
+        /** Edytuj agenta */
         patch: operations["patchAgent"];
         trace?: never;
     };
-    "/agents/{agentId}/revoke": {
+    "/agents/{agent_id}/revoke": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Revoke agent API key */
-        post: operations["revokeAgentKey"];
+        /**
+         * Unieważnij wszystkie klucze agenta
+         * @description Ustawia status `revoked`. Przywrócenie — przez wygenerowanie nowego klucza.
+         */
+        post: operations["revokeAgent"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}/overview": {
+    "/agents/{agent_id}/keys": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
             cookie?: never;
         };
+        get?: never;
+        put?: never;
         /**
-         * Per-agent Overview tab metrics
-         * @description Same window semantics as GET /overview. See docs/api/agents.md and docs/api/overview.md.
+         * Nowy klucz agenta
+         * @description Klucz pokazywany tylko raz. Stare klucze zostają aktywne do `revoke` (rotacja bez przestoju).
+         *     Agent w statusie `revoked` wraca do `active`.
          */
+        post: operations["createAgentKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{agent_id}/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        /** Metryki agenta */
         get: operations["getAgentOverview"];
         put?: never;
         post?: never;
@@ -132,14 +140,16 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}/posture": {
+    "/agents/{agent_id}/posture": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
             cookie?: never;
         };
-        /** Effective grants ∩ attached MCPs */
+        /** Efektywne uprawnienia agenta */
         get: operations["getAgentPosture"];
         put?: never;
         post?: never;
@@ -149,68 +159,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}/mcp/{serverId}": {
+    "/agents/{agent_id}/mcp/{server_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Attach org MCP to agent */
+        /** Podłącz serwer MCP do agenta (poza MVP) */
         post: operations["attachAgentMcp"];
-        /** Detach MCP from agent */
+        /** Odłącz serwer MCP od agenta (poza MVP) */
         delete: operations["detachAgentMcp"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}/mcp/{serverId}/auth": {
+    "/agents/{agent_id}/mcp/{server_id}/auth": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Start or complete per-agent MCP OAuth */
-        post: operations["authorizeAgentMcp"];
+        /** Autoryzacja MCP dla agenta (poza MVP) */
+        post: operations["authAgentMcp"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}/rules": {
+    "/agents/{agent_id}/rules": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
             cookie?: never;
         };
-        /** List agent policy rules */
-        get: operations["listAgentRules"];
+        /** Reguły agenta (w kolejności ewaluacji) */
+        get: operations["listRules"];
         put?: never;
-        /** Create policy rule */
-        post: operations["createAgentRule"];
+        /**
+         * Dodaj regułę
+         * @description Bez `position` reguła trafia na koniec listy.
+         */
+        post: operations["createRule"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}/rules/meta": {
+    "/agents/{agent_id}/rules/{rule_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+                rule_id: string;
+            };
             cookie?: never;
         };
-        /** Rule editor metadata (tools, fields, dry-run samples) */
-        get: operations["getAgentRulesMeta"];
+        get?: never;
+        /**
+         * Zastąp regułę
+         * @description Bez `position` pozycja zostaje bez zmian.
+         */
+        put: operations["updateRule"];
+        post?: never;
+        /** Usuń regułę */
+        delete: operations["deleteRule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/agents/{agent_id}/rules/meta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Metadane edytora reguł
+         * @description Toole per aplikacja, pola dostępne w warunkach (z `input_schema`, `args` i faktów) oraz próbki do dry-run.
+         */
+        get: operations["getRulesMeta"];
         put?: never;
         post?: never;
         delete?: never;
@@ -219,64 +271,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}/rules/dry-run": {
+    "/agents/{agent_id}/rules/dry-run": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Evaluate rules against sample args */
-        post: operations["dryRunAgentRules"];
+        /**
+         * Dry-run reguł + Cedar
+         * @description Bez `rules` używa zapisanych reguł agenta; z `rules` — szkicu (np. niezapisanych zmian z edytora).
+         *     Gdy `tool` istnieje w katalogu, odpowiedź zawiera też wynik pakietu Cedar (`policy`).
+         */
+        post: operations["dryRunRules"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/agents/{agentId}/rules/{ruleId}": {
+    "/agents/{agent_id}/quotas": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
             cookie?: never;
         };
-        get?: never;
-        /** Update policy rule */
-        put: operations["updateAgentRule"];
-        post?: never;
-        /** Delete policy rule */
-        delete: operations["deleteAgentRule"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/agents/{agentId}/quotas": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List rate-limit quotas for agent */
-        get: operations["listAgentQuotas"];
+        /** Kwoty agenta */
+        get: operations["listQuotas"];
         put?: never;
-        /** Create rate-limit quota */
-        post: operations["createAgentQuota"];
+        /** Dodaj kwotę */
+        post: operations["createQuota"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/quotas/{quotaId}": {
+    "/quotas/{quota_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                quota_id: string;
+            };
             cookie?: never;
         };
         get?: never;
@@ -285,7 +329,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Enable/disable or edit quota */
+        /** Edytuj kwotę */
         patch: operations["patchQuota"];
         trace?: never;
     };
@@ -296,7 +340,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List pending approvals */
+        /**
+         * Kolejka oczekujących approvali
+         * @description Tylko `pending` i nieprzeterminowane.
+         */
         get: operations["listApprovals"];
         put?: never;
         post?: never;
@@ -306,14 +353,16 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/approvals/{approvalId}": {
+    "/approvals/{approval_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                approval_id: components["parameters"]["ApprovalId"];
+            };
             cookie?: never;
         };
-        /** Get approval detail */
+        /** Szczegóły approvala */
         get: operations["getApproval"];
         put?: never;
         post?: never;
@@ -323,16 +372,21 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/approvals/{approvalId}/allow": {
+    "/approvals/{approval_id}/allow": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                approval_id: components["parameters"]["ApprovalId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Allow pending approval */
+        /**
+         * Zatwierdź jednorazowo
+         * @description Wykonuje zapamiętany request dokładnie raz.
+         */
         post: operations["allowApproval"];
         delete?: never;
         options?: never;
@@ -340,16 +394,21 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/approvals/{approvalId}/deny": {
+    "/approvals/{approval_id}/deny": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                approval_id: components["parameters"]["ApprovalId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Deny pending approval */
+        /**
+         * Odrzuć
+         * @description `reason` trafia do agenta jako `feedback`.
+         */
         post: operations["denyApproval"];
         delete?: never;
         options?: never;
@@ -357,16 +416,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/approvals/{approvalId}/allow-temporary": {
+    "/approvals/{approval_id}/allow-temporary": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                approval_id: components["parameters"]["ApprovalId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Allow temporarily */
+        /**
+         * Zatwierdź i przyznaj tymczasowy grant
+         * @description Wykonuje request i tworzy grant na (agent, tool) na `ttlSeconds`.
+         *     Domyślnie `defaultApprovalTtlSeconds` z ustawień workspace.
+         */
         post: operations["allowApprovalTemporary"];
         delete?: never;
         options?: never;
@@ -381,8 +446,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List audit events */
-        get: operations["listAuditEvents"];
+        /** Log decyzji */
+        get: operations["listAudit"];
         put?: never;
         post?: never;
         delete?: never;
@@ -391,14 +456,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/audit/{eventId}": {
+    "/audit/{event_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                /** @description `decision_id` */
+                event_id: string;
+            };
             cookie?: never;
         };
-        /** Get audit event */
+        /** Szczegóły decyzji */
         get: operations["getAuditEvent"];
         put?: never;
         post?: never;
@@ -408,15 +476,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/specialists": {
+    "/sessions": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List specialists */
-        get: operations["listSpecialists"];
+        /** Lista sesji (od ostatniej aktywności) */
+        get: operations["listSessions"];
         put?: never;
         post?: never;
         delete?: never;
@@ -425,15 +493,17 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/specialists/{specialistId}": {
+    "/sessions/{session_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                session_id: string;
+            };
             cookie?: never;
         };
-        /** Get specialist */
-        get: operations["getSpecialist"];
+        /** Sesja z timeline (hopy + decyzje + approvale) */
+        get: operations["getSession"];
         put?: never;
         post?: never;
         delete?: never;
@@ -449,44 +519,55 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List role templates */
+        /** Lista ról */
         get: operations["listRoles"];
         put?: never;
-        post?: never;
+        /**
+         * Utwórz rolę (draft)
+         * @description Bez `id` generowane z nazwy jako `role_<slug>`.
+         */
+        post: operations["createRole"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/roles/{roleId}": {
+    "/roles/{role_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                role_id: components["parameters"]["RoleId"];
+            };
             cookie?: never;
         };
-        /** Get role detail */
+        /** Szczegóły roli (macierz grantów) */
         get: operations["getRole"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update role grants or profile */
+        /**
+         * Edytuj rolę
+         * @description `grants` zastępuje granty tylko dla wymienionych aplikacji. Roli `archived` nie można zmieniać grantów.
+         */
         patch: operations["patchRole"];
         trace?: never;
     };
-    "/roles/{roleId}/publish": {
+    "/roles/{role_id}/publish": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                role_id: components["parameters"]["RoleId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Publish draft role */
+        /** Opublikuj rolę (draft → active) */
         post: operations["publishRole"];
         delete?: never;
         options?: never;
@@ -494,16 +575,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/roles/{roleId}/archive": {
+    "/roles/{role_id}/archive": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                role_id: components["parameters"]["RoleId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Archive role */
+        /** Zarchiwizuj rolę (active | draft → archived) */
         post: operations["archiveRole"];
         delete?: never;
         options?: never;
@@ -518,8 +601,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List org MCP catalog */
-        get: operations["listMcpServers"];
+        /** Rejestr serwerów (aplikacje REST i MCP) */
+        get: operations["listServers"];
         put?: never;
         post?: never;
         delete?: never;
@@ -535,61 +618,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Hosted connect wizard source options */
+        /** Źródła dla hosted adapterów */
         get: operations["listHostedSourceOptions"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/mcp/remote/discover": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Discover remote MCP tools */
-        post: operations["discoverRemoteMcp"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/mcp/remote": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Register remote MCP server */
-        post: operations["createRemoteMcp"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/mcp/hosted/discover": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Scan hosted source → proposed tools */
-        post: operations["discoverHostedMcp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -605,27 +637,168 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Provision hosted MCP adapter */
-        post: operations["createHostedMcp"];
+        /** Dodaj hosted adapter (poza MVP) */
+        post: operations["createHostedServer"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/mcp/{serverId}": {
+    "/mcp/hosted/discover": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get MCP server */
-        get: operations["getMcpServer"];
+        get?: never;
+        put?: never;
+        /** Discover hosted (poza MVP) */
+        post: operations["discoverHostedServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/remote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dodaj zdalny serwer MCP (poza MVP) */
+        post: operations["createRemoteServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/remote/discover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Discover zdalnego serwera (poza MVP) */
+        post: operations["discoverRemoteServer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mcp/{server_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
+            };
+            cookie?: never;
+        };
+        /** Szczegóły serwera */
+        get: operations["getServer"];
         put?: never;
         post?: never;
-        /** Remove MCP from org catalog */
-        delete: operations["deleteMcpServer"];
+        /** Usuń serwer (poza MVP — wyłącz zamiast tego) */
+        delete: operations["deleteServer"];
+        options?: never;
+        head?: never;
+        /** Włącz / wyłącz aplikację, zmień nazwę */
+        patch: operations["patchServer"];
+        trace?: never;
+    };
+    "/mcp/{server_id}/tools/{tool}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
+                /** @description Nazwa toola, z prefiksem `<server_id>.` lub bez. */
+                tool: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Włącz / wyłącz tool, zmień `kind` lub `scanMode` */
+        patch: operations["patchServerTool"];
+        trace?: never;
+    };
+    "/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pakiety polityk Cedar */
+        get: operations["listPolicyPacks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/policies/{app_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+            };
+            cookie?: never;
+        };
+        /** Pakiet polityk aplikacji */
+        get: operations["getPolicyPack"];
+        /**
+         * Zapisz pakiet (z walidacją)
+         * @description Pominięte pola zostają bez zmian. Pakiet jest kompilowany przed zapisem — błąd → `400`, nic nie trafia do bazy.
+         */
+        put: operations["putPolicyPack"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/policies/{app_id}/overrides/{agent_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+                agent_id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Override parametrów dla agenta
+         * @description Override może tylko zaostrzać parametry pakietu; luzujący → `400`.
+         */
+        put: operations["putPolicyOverride"];
+        post?: never;
+        /** Usuń override */
+        delete: operations["deletePolicyOverride"];
         options?: never;
         head?: never;
         patch?: never;
@@ -638,15 +811,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get workspace settings */
-        get: operations["getWorkspaceSettings"];
+        /** Ustawienia workspace */
+        get: operations["getWorkspace"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /** Update workspace settings */
-        patch: operations["patchWorkspaceSettings"];
+        /** Zmień ustawienia workspace */
+        patch: operations["patchWorkspace"];
         trace?: never;
     };
     "/settings/operators": {
@@ -656,7 +829,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List workspace operators */
+        /** Lista operatorów */
         get: operations["listOperators"];
         put?: never;
         post?: never;
@@ -675,7 +848,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Invite operator */
+        /** Zaproś operatora (owner / admin) */
         post: operations["inviteOperator"];
         delete?: never;
         options?: never;
@@ -683,16 +856,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/settings/operators/{operatorId}/resend": {
+    "/settings/operators/{operator_id}/resend": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                operator_id: components["parameters"]["OperatorId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Resend operator invite */
+        /** Ponów zaproszenie (status `invited`) */
         post: operations["resendOperatorInvite"];
         delete?: never;
         options?: never;
@@ -700,16 +875,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/settings/operators/{operatorId}/disable": {
+    "/settings/operators/{operator_id}/disable": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                operator_id: components["parameters"]["OperatorId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Disable operator */
+        /** Wyłącz operatora (nie dotyczy `owner`) */
         post: operations["disableOperator"];
         delete?: never;
         options?: never;
@@ -717,16 +894,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/settings/operators/{operatorId}/enable": {
+    "/settings/operators/{operator_id}/enable": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                operator_id: components["parameters"]["OperatorId"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
-        /** Enable operator */
+        /** Włącz operatora */
         post: operations["enableOperator"];
         delete?: never;
         options?: never;
@@ -741,7 +920,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Current signed-in operator + workspace */
+        /** Profil zalogowanego operatora */
         get: operations["getMe"];
         put?: never;
         post?: never;
@@ -751,15 +930,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/simulator/scenarios": {
+    "/specialists": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List simulator scenarios (stub) */
-        get: operations["listSimulatorScenarios"];
+        /**
+         * Modele ML (specjaliści)
+         * @description Pusta lista do czasu wpięcia modeli (`MlScorer.describe`).
+         */
+        get: operations["listSpecialists"];
         put?: never;
         post?: never;
         delete?: never;
@@ -768,432 +950,550 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/simulator/runs": {
+    "/specialists/{specialist_id}": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                specialist_id: string;
+            };
             cookie?: never;
         };
-        get?: never;
-        put?: never;
-        /** Start simulator run (stub) */
-        post: operations["createSimulatorRun"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/simulator/runs/{runId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get simulator run (stub) */
-        get: operations["getSimulatorRun"];
+        /** Szczegóły specjalisty */
+        get: operations["getSpecialist"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/simulator/{path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                path: string;
+            };
+            cookie?: never;
+        };
+        /** Simulator (poza MVP) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    path: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                501: components["responses"]["NotImplemented"];
+            };
+        };
+        /** Simulator (poza MVP) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    path: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                501: components["responses"]["NotImplemented"];
+            };
+        };
+        /** Simulator (poza MVP) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    path: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                501: components["responses"]["NotImplemented"];
+            };
+        };
+        /** Simulator (poza MVP) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    path: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                501: components["responses"]["NotImplemented"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Simulator (poza MVP) */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    path: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                501: components["responses"]["NotImplemented"];
+            };
+        };
         trace?: never;
     };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        HealthResponse: {
-            /** @example ok */
-            status: string;
+        AgentError: {
+            error: {
+                /** @enum {string} */
+                type: "authentication_error" | "permission_error" | "session_error" | "not_found" | "invalid_request_error" | "upstream_error" | "policy_error";
+                /** @example invalid_agent_key */
+                code: string;
+                message: string;
+            };
         };
-        DbTestResponse: {
-            /** @example Demo */
-            table: string;
-            /** @example 2 */
-            count: number;
-            rows: {
+        AdminError: {
+            /** @example Unknown agent */
+            detail: string;
+        };
+        ValidationErrorList: {
+            detail: {
                 [key: string]: unknown;
             }[];
         };
-        ErrorResponse: {
+        /** @description `null` = ostatnia strona. */
+        NextCursor: string | null;
+        /** @enum {string} */
+        DecisionStatus: "blocked" | "invalid_arguments" | "pending_approval" | "rate_limited" | "session_terminated";
+        /** @description Odpowiedź decyzji dla agenta — bez uzasadnień. */
+        DecisionResponse: {
+            status: components["schemas"]["DecisionStatus"];
+            decision_id: string;
+            /** @example Action blocked by policy */
+            message: string;
+            error: {
+                /** @constant */
+                type: "policy_error";
+                code: components["schemas"]["DecisionStatus"];
+                message: string;
+            };
+        };
+        DecisionPendingApproval: components["schemas"]["DecisionResponse"] & {
+            /** @constant */
+            status?: "pending_approval";
+            approval_id: string;
+            /** @example /v1/approvals/apr_1234?wait=30 */
+            poll_url: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        DecisionRateLimited: components["schemas"]["DecisionResponse"] & {
+            /** @constant */
+            status?: "rate_limited";
+            retry_after_seconds: number;
+        };
+        ApprovalPending: {
+            /** @constant */
+            status: "pending_approval";
+            decision_id: string;
+            approval_id: string;
+            poll_url: string;
+            /**
+             * Format: date-time
+             * @description Brak
+             */
+            expires_at?: string;
+        };
+        ApprovalApproved: {
+            /** @constant */
+            status: "approved";
+            decision_id: string;
+            approval_id: string;
+            result: components["schemas"]["ExecutionResult"];
+        };
+        ApprovalRejected: {
+            /** @constant */
+            status: "rejected";
+            decision_id: string;
+            approval_id: string;
+            /** @description Uzasadnienie operatora (może być puste). */
+            feedback: string;
+        };
+        ApprovalExpired: {
+            /** @constant */
+            status: "expired";
+            decision_id: string;
+            approval_id: string;
+        };
+        /** @description Wynik jednokrotnego wykonania zatwierdzonego requestu. */
+        ExecutionResult: {
+            status_code: number;
+            /** @description Body upstreamu (JSON lub tekst). */
+            body?: unknown;
+            /** @enum {string} */
+            error?: "request_tampered" | "action_no_longer_configured" | "upstream_timeout" | "upstream_unavailable" | "upstream_response_too_large";
+            message?: string;
+        };
+        /** @enum {string} */
+        AgentStatus: "active" | "disabled" | "revoked";
+        /** @enum {string} */
+        SessionStatus: "active" | "closed" | "terminated" | "expired";
+        /** @enum {string} */
+        ApprovalStatus: "pending" | "approved" | "rejected" | "expired";
+        /** @enum {string} */
+        RoleStatus: "draft" | "active" | "archived";
+        /** @enum {string} */
+        ToolKind: "read" | "write";
+        /** @enum {string} */
+        ServerHealth: "healthy" | "degraded" | "down" | "pending";
+        /**
+         * @description `caution` = proxy `escalate`.
+         * @enum {string}
+         */
+        UiDecision: "allow" | "caution" | "deny" | "rate_limited";
+        /** @enum {string} */
+        ActionStatus: "forwarded" | "executed" | "upstream_error" | "blocked" | "rate_limited" | "pending_approval" | "approved" | "rejected" | "expired" | "session_terminated" | "invalid";
+        ChainStep: {
+            /** @enum {string} */
+            stage: "rbac" | "rules" | "specialist" | "human";
+            outcome: string;
             detail: string;
         };
-        /**
-         * @description Preset time range for Overview metrics
-         * @enum {string}
-         */
-        OverviewRangePreset: "today" | "24h" | "7d" | "30d";
-        /**
-         * @description callsOverTime bucket size
-         * @enum {string}
-         */
-        OverviewBucket: "5m" | "15m" | "1h" | "1d";
-        /**
-         * @description Resolved window kind echoed in the response
-         * @enum {string}
-         */
-        OverviewWindowPreset: "today" | "24h" | "7d" | "30d" | "custom";
-        /** @enum {string} */
-        DecisionOutcome: "allow" | "caution" | "deny" | "rate_limited";
-        TimeBucket: {
-            /**
-             * Format: date-time
-             * @description Bucket start (inclusive)
-             */
+        Reason: {
+            code: string;
+            /** @enum {string} */
+            severity: "deny" | "escalate";
+            message?: string;
+            /** @default policy */
+            source: string;
+        };
+        Window: {
+            /** @enum {string} */
+            preset: "today" | "24h" | "7d" | "30d" | "custom";
+            /** Format: date-time */
             start: string;
-            /**
-             * Format: date-time
-             * @description Bucket end (exclusive)
-             */
+            /** Format: date-time */
             end: string;
-            /** @description Call count in this bucket (0 allowed for empty slots) */
-            count: number;
+            /** Format: date-time */
+            previousStart: string;
+            /** Format: date-time */
+            previousEnd: string;
+            timezone: string;
+            /** @enum {string} */
+            bucket: "5m" | "15m" | "1h" | "1d";
+            /** @example vs yesterday */
+            compareLabel: string;
         };
-        DecisionSplitItem: {
-            decision: components["schemas"]["DecisionOutcome"];
-            count: number;
+        WindowMetrics: {
+            window: components["schemas"]["Window"];
+            calls: number;
+            /** @description `null` gdy w poprzednim okresie nie było wywołań. */
+            callsDeltaPct: number | null;
+            denyRatePct: number;
+            cautionRatePct: number;
+            rateLimited: number;
+            decisionSplit: {
+                decision: components["schemas"]["UiDecision"];
+                count: number;
+            }[];
+            callsOverTime: {
+                /** Format: date-time */
+                start: string;
+                /** Format: date-time */
+                end: string;
+                count: number;
+            }[];
+            topTools: {
+                tool: string;
+                count: number;
+            }[];
+            pendingApprovals: number;
         };
-        AgentSplitItem: {
-            agentId: string;
-            agentName: string;
-            /** @description Allow decisions in the window */
-            clear: number;
-            /** @description Caution + deny decisions (excludes rate_limited) */
-            flagged: number;
-        };
-        BudgetBar: {
+        QuotaUsage: {
             id: string;
             agentId: string;
-            /** @example Purchasing · daily */
+            /** @example Purchasing Agent · Daily calls */
             label: string;
             used: number;
             cap: number;
-            /** @example calls */
-            unit: string;
+            /** @constant */
+            unit: "calls";
         };
-        RankedAgent: {
-            agentId: string;
-            agentName: string;
-            count: number;
-        };
-        RankedTool: {
-            /** @description Tool identifier (prefer a single org-wide naming convention) */
-            tool: string;
-            count: number;
-        };
-        OverviewWindow: {
-            preset: components["schemas"]["OverviewWindowPreset"];
-            /** Format: date-time */
-            start: string;
-            /** Format: date-time */
-            end: string;
-            /**
-             * Format: date-time
-             * @description Start of the equal-length previous period used for callsDeltaPct
-             */
-            previousStart: string;
-            /**
-             * Format: date-time
-             * @description End of the previous period (typically equals start)
-             */
-            previousEnd: string;
-            /** @example Europe/Warsaw */
-            timezone: string;
-            bucket: components["schemas"]["OverviewBucket"];
-            /**
-             * @description Short label for the delta hint in the UI
-             * @example vs yesterday
-             */
-            compareLabel: string;
-        };
-        OverviewResponse: {
-            window: components["schemas"]["OverviewWindow"];
-            /** @description Gateway tool invocations in the resolved window */
-            calls: number;
-            /** @description Percent change vs previous equal-length period; null if previous period has 0 calls */
-            callsDeltaPct: number | null;
-            /** @description Open approval queue count (point-in-time) */
-            pendingApprovals: number;
-            /** @description Agents with status active (point-in-time) */
+        Overview: components["schemas"]["WindowMetrics"] & {
             activeAgents: number;
-            /** @description Percent of audited decisions that are deny */
-            denyRatePct: number;
-            /** @description Percent of audited decisions that are caution */
-            cautionRatePct: number;
-            /** @description Count of rate_limited decisions in the window */
-            rateLimited: number;
-            /** @description Prefer order: allow, caution, deny, rate_limited */
-            decisionSplit: components["schemas"]["DecisionSplitItem"][];
-            agentSplit: components["schemas"]["AgentSplitItem"][];
-            /** @description Dense series covering the full window at the resolved bucket */
-            callsOverTime: components["schemas"]["TimeBucket"][];
-            topAgents: components["schemas"]["RankedAgent"][];
-            topTools: components["schemas"]["RankedTool"][];
-            /** @description Curated current quotas (point-in-time; not historical) */
-            budgets: components["schemas"]["BudgetBar"][];
+            agentSplit: {
+                agentId: string;
+                agentName: string;
+                clear: number;
+                flagged: number;
+            }[];
+            topAgents: {
+                agentId: string;
+                agentName: string;
+                count: number;
+            }[];
+            budgets: components["schemas"]["QuotaUsage"][];
         };
-        CursorPageMeta: {
-            nextCursor?: string | null;
+        AgentOverview: components["schemas"]["WindowMetrics"] & {
+            clear: number;
+            /** @description caution + deny */
+            flagged: number;
+            /** @description Alias `clear` (kompatybilność UI). */
+            clearToday: number;
+            /** @description Alias `flagged` (kompatybilność UI). */
+            cautionToday: number;
+            /** @description Kwota dzienna, a gdy jej brak — pierwsza aktywna. */
+            budget: components["schemas"]["QuotaUsage"] | null;
         };
-        /** @enum {string} */
-        AgentStatus: "active" | "revoked" | "disabled";
         Agent: {
-            /** @example agt_purchasing_01 */
+            /** @example purchasing-agent */
             id: string;
             name: string;
             roleId: string | null;
-            roleName?: string | null;
+            roleName: string | null;
             status: components["schemas"]["AgentStatus"];
-            /** @example gw_live_••••a91c */
+            /** @example ak_1a2b3c4d_••••x9Yz */
             apiKeyHint: string;
+            /** @description Aplikacje */
             mcpServerIds: string[];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
-            lastSeenAt: string;
+            lastSeenAt: string | null;
+            mandate: string;
+            /** @description Pusta = dowolny model. */
+            llmModels: string[];
+            /** @description `limits.requests_per_minute` */
+            rateLimitOverride: number | null;
+            /**
+             * @example {
+             *       "requests_per_minute": 60,
+             *       "max_denies_per_session": 3
+             *     }
+             */
+            limits: {
+                [key: string]: number;
+            };
         };
-        AgentListResponse: {
+        AgentWithKey: components["schemas"]["Agent"] & {
+            /**
+             * @description Pełny klucz — pokazywany tylko raz.
+             * @example ak_1a2b3c4d_secret
+             */
+            apiKey: string;
+        };
+        AgentPage: {
             items: components["schemas"]["Agent"][];
-            nextCursor?: string | null;
+            nextCursor: components["schemas"]["NextCursor"];
         };
-        AgentPatchRequest: {
+        AgentCreate: {
+            id: string;
+            name: string;
+            mandate: string;
             roleId?: string | null;
-            name?: string;
-            /** @enum {string} */
-            status?: "active" | "disabled";
+            /** @default [] */
+            llmModels: string[];
+            /** @default {} */
+            limits: {
+                [key: string]: number;
+            };
         };
-        AgentMcpAttachResponse: {
-            agentId: string;
-            mcpServerIds: string[];
-            authRequired?: boolean;
+        /** @description Pola pominięte zostają bez zmian. `rateLimitOverride` = `null` usuwa override; `roleId` = `null` odpina rolę. */
+        AgentPatch: {
+            roleId?: string | null;
+            name?: string | null;
+            /** @enum {string|null} */
+            status?: "active" | "disabled" | null;
+            mandate?: string | null;
+            llmModels?: string[] | null;
+            rateLimitOverride?: number | null;
         };
-        McpAuthStartResponse: {
-            /** Format: uri */
-            authorizationUrl: string;
-            state: string;
-        };
-        McpAuthCompleteRequest: {
-            code?: string;
-            state?: string;
-        };
-        McpAuthCompleteResponse: {
-            attached: boolean;
-            serverId: string;
-        };
-        PostureTool: {
+        EffectiveTool: {
             serverId: string;
             serverName: string;
+            /** @example marketplace.place_order */
             tool: string;
             /** @enum {string} */
             via: "server" | "tool";
         };
-        /** @enum {string} */
-        RoleStatus: "active" | "draft" | "archived";
-        ServerGrant: {
-            serverId: string;
-            serverName: string;
-            serverWide: boolean;
-            tools: {
-                [key: string]: boolean;
-            };
-        };
-        RoleSummary: {
-            id: string;
-            name: string;
-            description: string;
-            status: components["schemas"]["RoleStatus"];
-            grants: components["schemas"]["ServerGrant"][];
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
         AgentPosture: {
-            role: components["schemas"]["RoleSummary"] | null;
-            callable: components["schemas"]["PostureTool"][];
-            unreachable: components["schemas"]["PostureTool"][];
+            role: components["schemas"]["Role"] | null;
+            callable: components["schemas"]["EffectiveTool"][];
+            unreachable: unknown[];
             attachedWithoutGrants: string[];
         };
-        AgentBudgetBar: {
-            id: string;
-            label: string;
-            used: number;
-            cap: number;
-            /** @example calls */
-            unit: string;
-        };
-        AgentOverviewResponse: {
-            window: components["schemas"]["OverviewWindow"];
-            calls: number;
-            callsDeltaPct: number | null;
-            pendingApprovals: number;
-            denyRatePct: number;
-            cautionRatePct: number;
-            rateLimited: number;
-            /** @description Allow decisions in the window */
-            clear: number;
-            /** @description Caution + deny in the window */
-            flagged: number;
-            decisionSplit: components["schemas"]["DecisionSplitItem"][];
-            callsOverTime: components["schemas"]["TimeBucket"][];
-            topTools: components["schemas"]["RankedTool"][];
-            budget: components["schemas"]["AgentBudgetBar"] | null;
+        /** @description Drzewo warunków (max głębokość 8). Węzeł grupy albo liść. */
+        ConditionNode: {
+            /** @enum {string} */
+            combinator: "and" | "or";
+            children?: components["schemas"]["ConditionNode"][];
+        } | {
+            /** @description Szukane w args → request → fakty; kropka = zagnieżdżenie. */
+            field: string;
+            /** @enum {string} */
+            op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "not_in" | "is_empty" | "not_empty";
+            /** @description Lista dla `in` / `not_in`. */
+            value?: unknown;
         };
         /** @enum {string} */
         RuleOutcome: "allow" | "deny" | "needs_ai";
-        /** @enum {string} */
-        CondOp: "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in" | "not_in" | "is_empty" | "not_empty";
-        /** @enum {string} */
-        CondField: "shop_location" | "total_eur" | "vendor" | "qty" | "delta" | "abs_delta" | "reason" | "sku" | "priority" | "audience";
-        ConditionLeaf: {
-            id: string;
-            field: components["schemas"]["CondField"];
-            op: components["schemas"]["CondOp"];
-            value: string;
+        RuleBody: {
+            name: string;
+            /** @description Kwalifikowana nazwa toola; dopuszczalne wzorce glob. */
+            tool: string;
+            /**
+             * @default {
+             *       "combinator": "and",
+             *       "children": []
+             *     }
+             */
+            when: components["schemas"]["ConditionNode"];
+            then: components["schemas"]["RuleOutcome"];
+            /** @default true */
+            enabled: boolean;
+            position?: number | null;
         };
-        ConditionGroup: {
-            id: string;
-            /** @enum {string} */
-            combinator: "and" | "or";
-            children: (components["schemas"]["ConditionLeaf"] | components["schemas"]["ConditionGroup"])[];
-        };
-        PolicyRule: {
+        Rule: {
             id: string;
             name: string;
             agentId: string;
             tool: string;
-            when: components["schemas"]["ConditionGroup"];
+            when: components["schemas"]["ConditionNode"];
             then: components["schemas"]["RuleOutcome"];
             enabled: boolean;
+            position: number;
+            /** Format: date-time */
+            updatedAt: string;
         };
-        PolicyRuleCreateRequest: {
-            name: string;
+        RulesMeta: {
+            tools: {
+                serverId: string;
+                serverName: string;
+                tools: string[];
+            }[];
+            fields: {
+                id: string;
+                label: string;
+                /** @enum {string} */
+                type: "number" | "enum" | "text";
+                values?: unknown[];
+                /** @description `["*"]` dla faktów liczonych. */
+                tools: string[];
+                computed?: boolean;
+            }[];
+            dryRunSamples: {
+                id: string;
+                label: string;
+                tool: string;
+                args: {
+                    [key: string]: unknown;
+                };
+            }[];
+        };
+        DryRunBody: {
             tool: string;
-            when: components["schemas"]["ConditionGroup"];
-            then: components["schemas"]["RuleOutcome"];
-            /** @default true */
-            enabled: boolean;
-        };
-        PolicyRuleListResponse: {
-            items: components["schemas"]["PolicyRule"][];
-        };
-        /** @enum {string} */
-        RuleFieldType: "enum" | "number" | "text";
-        RuleFieldDef: {
-            id: components["schemas"]["CondField"];
-            label: string;
-            type: components["schemas"]["RuleFieldType"];
-            options?: string[];
-            tools: string[];
-        };
-        RuleToolGroup: {
-            serverId: string;
-            serverName: string;
-            tools: string[];
-        };
-        DryRunSample: {
-            id: string;
-            label: string;
-            tool: string;
+            /** @default {} */
             args: {
                 [key: string]: unknown;
             };
-        };
-        RulesMetaResponse: {
-            tools: components["schemas"]["RuleToolGroup"][];
-            fields: components["schemas"]["RuleFieldDef"][];
-            dryRunSamples: components["schemas"]["DryRunSample"][];
-        };
-        RulesDryRunRequest: {
-            tool: string;
-            args: {
+            rules?: (components["schemas"]["RuleBody"] & {
+                id?: string;
+            })[] | null;
+            /** @default {} */
+            sessionState: {
                 [key: string]: unknown;
             };
-            /** @description Optional override; omit to use persisted rules */
-            rules?: components["schemas"]["PolicyRule"][];
+            /** @default {} */
+            enrichment: {
+                [key: string]: unknown;
+            };
         };
-        RulesDryRunResponse: {
+        DryRunResult: {
             matchedRuleId: string | null;
             outcome: components["schemas"]["RuleOutcome"] | null;
             detail: string;
+            policy?: {
+                /** @enum {string} */
+                verdict: "allow" | "deny" | "escalate";
+                reasons: components["schemas"]["Reason"][];
+                facts: {
+                    [key: string]: unknown;
+                };
+            };
         };
-        /** @enum {string} */
-        QuotaWindow: "1m" | "1h" | "1d";
-        RateLimitQuota: {
+        Quota: {
             id: string;
             name: string;
             agentId: string;
             agentName: string;
-            window: components["schemas"]["QuotaWindow"];
+            /** @enum {string} */
+            window: "1m" | "1h" | "1d";
             cap: number;
             used: number;
-            /** @enum {string} */
+            /** @constant */
             unit: "calls";
             enabled: boolean;
             burst: number;
             /** Format: date-time */
             updatedAt: string;
         };
-        QuotaListResponse: {
-            items: components["schemas"]["RateLimitQuota"][];
-        };
-        QuotaCreateRequest: {
+        QuotaCreate: {
             name: string;
-            window: components["schemas"]["QuotaWindow"];
+            /** @enum {string} */
+            window: "1m" | "1h" | "1d";
             cap: number;
+            /** @default 0 */
             burst: number;
         };
-        QuotaPatchRequest: {
-            enabled?: boolean;
-            name?: string;
-            cap?: number;
-            burst?: number;
+        QuotaPatch: {
+            enabled?: boolean | null;
+            name?: string | null;
+            cap?: number | null;
+            burst?: number | null;
         };
-        ApprovalRequest: {
+        Approval: {
             id: string;
             tool: string;
             agentId: string;
             agentName: string;
+            /** @example rules/v0 */
             specialist: string;
             allowProb: number;
             denyProb: number;
             ageSeconds: number;
             ttlSeconds: number;
             matchedRules: string[];
+            /** @example caution → human */
             modelChoice: string;
             argsRedacted: {
                 [key: string]: unknown;
             };
             /** Format: date-time */
             createdAt: string;
-        };
-        ApprovalListResponse: {
-            items: components["schemas"]["ApprovalRequest"][];
-            nextCursor?: string | null;
-        };
-        ApprovalDenyRequest: {
-            reason?: string;
-        };
-        ApprovalAllowTemporaryRequest: {
-            ttlSeconds?: number;
-        };
-        ApprovalResolveResponse: {
-            id: string;
-            /** @enum {string} */
-            decision: "allow" | "deny";
-            /** @enum {string} */
-            mode: "once" | "temporary" | "deny";
-        };
-        /** @enum {string} */
-        DecisionChainStage: "rbac" | "rules" | "specialist" | "human";
-        DecisionChainStep: {
-            stage: components["schemas"]["DecisionChainStage"];
-            outcome: string;
-            detail: string;
+            /** Format: date-time */
+            expiresAt: string;
+            status: components["schemas"]["ApprovalStatus"];
+            decisionId: string;
+            sessionId: string;
+            decisionChain: components["schemas"]["ChainStep"][];
         };
         AuditEvent: {
             id: string;
@@ -1202,332 +1502,500 @@ export interface components {
             tool: string;
             agentId: string;
             agentName: string;
-            decision: components["schemas"]["DecisionOutcome"];
-            decisionChain: components["schemas"]["DecisionChainStep"][];
+            decision: components["schemas"]["UiDecision"];
+            decisionChain: components["schemas"]["ChainStep"][];
             argsRedacted: {
                 [key: string]: unknown;
             };
+            sessionId: string | null;
+            approvalId: string | null;
+            actionStatus: components["schemas"]["ActionStatus"] | null;
+            httpStatus: number | null;
+            degraded: boolean;
+            /** @description Tylko dla `rate_limited`. */
+            quotaId?: string;
+            /** @description Tylko dla `rate_limited`. */
+            retryAfterSeconds?: number | null;
         };
-        AuditListResponse: {
-            items: components["schemas"]["AuditEvent"][];
-            nextCursor?: string | null;
+        AuditEventDetail: components["schemas"]["AuditEvent"] & {
+            reasons: components["schemas"]["Reason"][];
+            signals: {
+                [key: string]: unknown;
+            };
+            facts: {
+                [key: string]: unknown;
+            };
+            enrichment: {
+                [key: string]: unknown;
+            };
+            confidence: number;
+            configRevision: number;
+            latencyMs: number;
+            kind: components["schemas"]["ToolKind"];
+            app: string;
+            requestId: string | null;
+            upstreamStatus: number | null;
+            approvalStatus: components["schemas"]["ApprovalStatus"] | null;
         };
-        /** @enum {string} */
-        SpecialistHealth: "healthy" | "degraded" | "down" | "circuit_open";
-        CircuitBreaker: {
-            open: boolean;
-            failures: number;
-            threshold: number;
-            cooldownSeconds: number;
-        };
-        Specialist: {
+        Session: {
             id: string;
-            name: string;
             agentId: string;
-            modelId: string;
-            version: string;
-            health: components["schemas"]["SpecialistHealth"];
-            latencyP95Ms: number;
-            latencyBudgetMs: number;
-            errorRatePct: number;
-            falseClearRatePct: number;
-            evaluatesToday: number;
-            clearToday: number;
-            cautionToday: number;
-            clearThreshold: number;
+            agentName: string;
+            task: string | null;
+            status: components["schemas"]["SessionStatus"];
+            denyCount: number;
+            terminationReason: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            lastActivityAt: string;
+            /** Format: date-time */
+            closedAt: string | null;
+            decisions: number;
+            pendingApprovals: number;
+        };
+        TimelineEntry: {
+            hopId: string;
+            seq: number;
+            /** Format: date-time */
+            timestamp: string;
             /** @enum {string} */
-            onFailure: "escalate_human" | "deny";
-            circuitBreaker: components["schemas"]["CircuitBreaker"];
-            criteriaSummary: string;
-            /** Format: date-time */
-            loadedAt: string;
-            /** Format: date-time */
-            lastEvaluateAt: string;
+            direction: "request" | "response";
+            /** @enum {string} */
+            protocol: "rest" | "llm" | "mcp";
+            app: string;
+            tool: string | null;
+            method: string | null;
+            path: string | null;
+            upstreamStatus: number | null;
+            upstreamLatencyMs: number | null;
+            payload: {
+                [key: string]: unknown;
+            };
+            /** @description Tylko dla hopów request, dla których zapadła decyzja. */
+            decision?: {
+                id: string;
+                decision: components["schemas"]["UiDecision"];
+                confidence: number;
+                reasons: components["schemas"]["Reason"][];
+                decisionChain: components["schemas"]["ChainStep"][];
+                actionStatus: components["schemas"]["ActionStatus"] | null;
+                degraded: boolean;
+                approvalId: string | null;
+                approvalStatus: components["schemas"]["ApprovalStatus"] | null;
+                feedback: string | null;
+                resolvedBy: string | null;
+            };
         };
-        SpecialistListResponse: {
-            items: components["schemas"]["Specialist"][];
-            nextCursor?: string | null;
+        SessionDetail: components["schemas"]["Session"] & {
+            /** @description Stan sesji (capture, `signals`, `llm_tool_calls`). */
+            state: {
+                [key: string]: unknown;
+            };
+            timeline: components["schemas"]["TimelineEntry"][];
         };
-        AssignedAgent: {
+        RoleGrant: {
+            serverId: string;
+            serverName: string;
+            serverWide: boolean;
+            /**
+             * @example {
+             *       "warehouse.low_stock": true,
+             *       "warehouse.adjust_stock": false
+             *     }
+             */
+            tools: {
+                [key: string]: boolean;
+            };
+        };
+        GrantInput: {
+            serverId: string;
+            /** @default false */
+            serverWide: boolean;
+            /**
+             * @description Nazwy toola z prefiksem aplikacji lub bez. Zaznaczenie wszystkich = grant na całą aplikację.
+             * @default {}
+             */
+            tools: {
+                [key: string]: boolean;
+            };
+        };
+        AgentRef: {
             id: string;
             name: string;
-            status: components["schemas"]["AgentStatus"];
+            status?: components["schemas"]["AgentStatus"];
         };
-        RoleListItem: {
+        Role: {
+            id: string;
+            name: string;
+            description: string;
+            status: components["schemas"]["RoleStatus"];
+            grants: components["schemas"]["RoleGrant"][];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            assignedAgents: components["schemas"]["AgentRef"][];
+            effectiveTools: components["schemas"]["EffectiveTool"][];
+        };
+        RoleSummary: {
             id: string;
             name: string;
             description: string;
             status: components["schemas"]["RoleStatus"];
             grantedToolCount: number;
-            assignedAgents: components["schemas"]["AssignedAgent"][];
+            assignedAgentIds: string[];
+            assignedAgents: components["schemas"]["AgentRef"][];
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
         };
-        RoleListResponse: {
-            items: components["schemas"]["RoleListItem"][];
-            nextCursor?: string | null;
+        RoleCreate: {
+            id?: string | null;
+            name: string;
+            /** @default  */
+            description: string;
+            /** @default [] */
+            grants: components["schemas"]["GrantInput"][];
         };
-        RoleDetail: components["schemas"]["RoleSummary"] & {
-            assignedAgents?: components["schemas"]["AssignedAgent"][];
-            effectiveTools?: components["schemas"]["PostureTool"][];
+        RolePatch: {
+            name?: string | null;
+            description?: string | null;
+            grants?: components["schemas"]["GrantInput"][] | null;
         };
-        RolePatchRequest: {
-            name?: string;
-            description?: string;
-            grants?: components["schemas"]["ServerGrant"][];
-        };
-        /** @enum {string} */
-        McpKind: "remote" | "hosted";
-        /** @enum {string} */
-        McpHealth: "healthy" | "degraded" | "down" | "pending";
-        McpServer: {
+        Server: {
             id: string;
             name: string;
-            kind: components["schemas"]["McpKind"];
+            /** @constant */
+            kind: "remote";
+            /** @enum {string} */
+            protocol: "rest" | "mcp";
             url: string;
-            health: components["schemas"]["McpHealth"];
+            health: components["schemas"]["ServerHealth"];
+            /** @description Liczba włączonych tooli. */
             toolCount: number;
+            /** @description Włączone toole. */
             tools: string[];
+            toolDetails: {
+                name: string;
+                kind: components["schemas"]["ToolKind"];
+                method: string | null;
+                /** @description Ścieżka HTTP albo nazwa toola MCP. */
+                path: string | null;
+                description: string | null;
+                enabled: boolean;
+            }[];
             /** Format: date-time */
             lastSyncAt: string;
             requiresAuth: boolean;
             description: string;
-        };
-        McpListResponse: {
-            items: components["schemas"]["McpServer"][];
-            nextCursor?: string | null;
-        };
-        /** @enum {string} */
-        HostedSourceKind: "rest" | "openapi" | "database" | "package" | "template";
-        /** @enum {string} */
-        HostedAuthMethod: "api_key" | "oauth" | "mtls" | "none";
-        HostedSourceOption: {
-            id: components["schemas"]["HostedSourceKind"];
-            label: string;
-            blurb: string;
-            urlPlaceholder: string;
-        };
-        HostedSourceOptionsResponse: {
-            items: components["schemas"]["HostedSourceOption"][];
-        };
-        RemoteDiscoverRequest: {
-            url: string;
-            name?: string;
-        };
-        RemoteDiscoverResponse: {
-            name: string;
-            url: string;
-            requiresAuth: boolean;
-            tools: string[];
-            toolCount: number;
-            description: string;
-        };
-        RemoteCreateRequest: {
-            name: string;
-            url: string;
-            tools: string[];
-            requiresAuth?: boolean;
-            description?: string;
-            authCode?: string;
-            state?: string;
-        };
-        /** @enum {string} */
-        ProposedToolRisk: "read" | "write" | "sensitive";
-        ProposedToolParameter: {
-            name: string;
-            /** @description path | query | header | cookie */
-            in: string;
-            required: boolean;
-            schemaType?: string;
-            description?: string;
-        };
-        ProposedToolRequestBody: {
-            contentTypes: string[];
-            required: boolean;
-            summary?: string;
-        };
-        ProposedToolResponse: {
-            status: string;
-            description: string;
-        };
-        ProposedHostedTool: {
-            name: string;
-            risk: components["schemas"]["ProposedToolRisk"];
-            /** @description AI-facing description (may be edited before provision) */
-            description: string;
-            defaultEnabled: boolean;
-            /** @description Human title (OpenAPI summary) */
-            title?: string;
-            /** @description e.g. GET /orders/{id} */
-            subtitle?: string;
-            /** @description OpenAPI tag / resource group */
-            group?: string;
-            method?: string;
-            path?: string;
-            operationId?: string;
-            /** @description Unedited description from the OpenAPI operation */
-            originalDescription?: string;
-            parameters?: components["schemas"]["ProposedToolParameter"][];
-            requestBody?: components["schemas"]["ProposedToolRequestBody"] | null;
-            responses?: components["schemas"]["ProposedToolResponse"][];
-        };
-        HostedDiscoverRequest: {
-            source: components["schemas"]["HostedSourceKind"];
-            name?: string;
-            /** @description Customer API base URL (not the OpenAPI document URL) */
-            baseUrl?: string;
-            authMethod?: components["schemas"]["HostedAuthMethod"];
-            /** @description Parsed OpenAPI/Swagger JSON (source=openapi) */
-            specDocument?: {
-                [key: string]: unknown;
-            };
-            /** @description Raw OpenAPI JSON string alternative to specDocument */
-            specText?: string;
-            /** @description Fetch remote OpenAPI JSON when no upload */
-            specUrl?: string;
-            specFileName?: string;
-        };
-        HostedDiscoverResponse: {
-            name: string;
-            source: components["schemas"]["HostedSourceKind"];
-            baseUrl: string;
-            slug: string;
-            tools: components["schemas"]["ProposedHostedTool"][];
-            description: string;
-            requiresAuth: boolean;
-            specTitle?: string;
-            specVersion?: string;
-        };
-        HostedCreateToolSelection: {
-            name: string;
-            /** @description Final AI description to publish on the hosted MCP */
-            description: string;
             enabled: boolean;
+            hasPolicyPack: boolean;
         };
-        HostedCreateRequest: {
-            source: components["schemas"]["HostedSourceKind"];
-            name: string;
-            baseUrl: string;
-            slug: string;
-            authMethod?: components["schemas"]["HostedAuthMethod"];
-            credentials?: {
+        PolicyPack: {
+            appId: string;
+            cedarPolicies: string;
+            cedarSchema: string;
+            params: {
                 [key: string]: unknown;
             };
-            /** @description Enablement + AI descriptions from the review step */
-            tools: components["schemas"]["HostedCreateToolSelection"][];
-            /** @description Deprecated: prefer tools[].enabled */
-            enabledTools?: string[];
-            description?: string;
-            specDocument?: {
+            paramsSchema: {
                 [key: string]: unknown;
             };
-            specText?: string;
-            specUrl?: string;
-            specFileName?: string;
-        };
-        /** @enum {string} */
-        OperatorRole: "owner" | "admin" | "operator" | "viewer";
-        /** @enum {string} */
-        OperatorStatus: "active" | "invited" | "disabled";
-        Operator: {
-            id: string;
-            /** Format: email */
-            email: string;
-            name: string;
-            role: components["schemas"]["OperatorRole"];
-            status: components["schemas"]["OperatorStatus"];
+            /** @description agent_id → parametry override. */
+            overrides: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
+            /** @description Adnotacje reguł `forbid` z pakietu. */
+            rules: ({
+                id?: string;
+                /** @enum {string} */
+                severity?: "deny" | "escalate";
+                message?: string | null;
+            } & {
+                [key: string]: unknown;
+            })[];
+            /** @description agent_id → parametry po złożeniu z override. */
+            effectiveParams: {
+                [key: string]: {
+                    [key: string]: unknown;
+                };
+            };
             /** Format: date-time */
-            invitedAt: string;
-            /** Format: date-time */
-            lastActiveAt: string | null;
+            updatedAt: string;
         };
-        OperatorListResponse: {
-            items: components["schemas"]["Operator"][];
-            nextCursor?: string | null;
-        };
-        OperatorInviteRequest: {
-            /** Format: email */
-            email: string;
-            /** @enum {string} */
-            role: "admin" | "operator" | "viewer";
-        };
-        WorkspaceSettings: {
+        Workspace: {
             orgName: string;
             /** @enum {integer} */
             defaultApprovalTtlSeconds: 300 | 900 | 1800 | 3600;
             specialistFailClosed: boolean;
             /** @enum {integer} */
             auditRetentionDays: 30 | 90 | 180 | 365;
-            /** @enum {string} */
+            /** @constant */
             authMode: "invite_only";
         };
-        WorkspaceSettingsPatch: {
-            orgName?: string;
-            /** @enum {integer} */
-            defaultApprovalTtlSeconds?: 300 | 900 | 1800 | 3600;
-            specialistFailClosed?: boolean;
-            /** @enum {integer} */
-            auditRetentionDays?: 30 | 90 | 180 | 365;
-        };
-        MeWorkspace: {
-            orgName: string;
-            /** @enum {string} */
-            authMode: "invite_only";
-        };
-        MeResponse: {
-            userId?: string;
+        Operator: {
+            id: string;
             /** Format: email */
             email: string;
             name: string;
-            avatarUrl?: string | null;
-            authProvider: string;
-            /** Format: date-time */
-            lastSignInAt?: string | null;
-            /** Format: date-time */
-            sessionExpiresAt?: string | null;
-            operator: components["schemas"]["Operator"] | null;
-            workspace: components["schemas"]["MeWorkspace"];
-        };
-        SimulatorScenario: {
-            id: string;
-            label: string;
-            tool: string;
-            args: {
-                [key: string]: unknown;
-            };
-            agentIdHint?: string | null;
-        };
-        SimulatorScenarioListResponse: {
-            items: components["schemas"]["SimulatorScenario"][];
-        };
-        SimulatorRunRequest: {
-            agentId: string;
-            roleId?: string;
-            scenarioId: string;
-            argsOverride?: {
-                [key: string]: unknown;
-            };
-        };
-        SimulatorRun: {
-            id: string;
             /** @enum {string} */
-            status: "completed" | "failed";
-            decision: components["schemas"]["DecisionOutcome"];
-            steps: components["schemas"]["DecisionChainStep"][];
-            auditEventId?: string | null;
+            role: "owner" | "admin" | "operator" | "viewer";
+            /** @enum {string} */
+            status: "active" | "invited" | "disabled";
+            /** Format: date-time */
+            invitedAt: string | null;
+            /** Format: date-time */
+            lastActiveAt: string | null;
+        };
+        Profile: {
+            userId: string;
+            email: string;
+            name: string;
+            avatarUrl: string | null;
+            /** @example email */
+            authProvider: string;
+            lastSignInAt: null;
+            /** Format: date-time */
+            sessionExpiresAt: string | null;
+            /** @description Wpis z rostera; `null`, gdy użytkownika nie ma na liście operatorów. */
+            operator: components["schemas"]["Operator"] | null;
+            workspace: {
+                orgName: string;
+                /** @constant */
+                authMode: "invite_only";
+            };
+        };
+        Specialist: {
+            id: string;
+        } & {
+            [key: string]: unknown;
         };
     };
-    responses: never;
-    parameters: never;
+    responses: {
+        /** @description `missing_agent_key`, `invalid_agent_key` */
+        AgentUnauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AgentError"];
+            };
+        };
+        /** @description `agent_disabled` */
+        AgentForbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AgentError"];
+            };
+        };
+        /** @description `request_too_large` — body powyżej `MAX_REQUEST_BYTES` */
+        RequestTooLarge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AgentError"];
+            };
+        };
+        /** @description `upstream_unavailable`, `upstream_response_too_large` (502), `upstream_timeout` (504) */
+        UpstreamError: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AgentError"];
+            };
+        };
+        /** @description Błędne dane wejściowe */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminError"];
+            };
+        };
+        /** @description Brak / niepoprawny JWT */
+        Unauthorized: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminError"];
+            };
+        };
+        /** @description Operator wyłączony lub bez uprawnień */
+        Forbidden: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminError"];
+            };
+        };
+        /** @description Nie znaleziono */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminError"];
+            };
+        };
+        /** @description Konflikt stanu */
+        Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminError"];
+            };
+        };
+        /** @description Poza MVP */
+        NotImplemented: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["AdminError"];
+            };
+        };
+        /** @description OK */
+        Agent: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Agent"];
+            };
+        };
+        /** @description OK */
+        Rule: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Rule"];
+            };
+        };
+        /** @description OK */
+        Quota: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Quota"];
+            };
+        };
+        /** @description Rozstrzygnięte */
+        ApprovalResolution: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": {
+                    id: string;
+                    /** @enum {string} */
+                    decision: "allow" | "deny";
+                    /** @enum {string} */
+                    mode: "once" | "deny" | "temporary";
+                };
+            };
+        };
+        /** @description OK */
+        Role: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Role"];
+            };
+        };
+        /** @description OK */
+        Server: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Server"];
+            };
+        };
+        /** @description OK */
+        PolicyPack: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["PolicyPack"];
+            };
+        };
+        /** @description OK */
+        Workspace: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Workspace"];
+            };
+        };
+        /** @description OK */
+        Operator: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Operator"];
+            };
+        };
+    };
+    parameters: {
+        /** @description Sesja z `POST /v1/sessions`, przypięta do agenta. */
+        SessionIdRequired: string;
+        /** @description Gdy podane — hopy i sygnały trafiają do stanu sesji. */
+        SessionIdOptional: string;
+        AgentId: string;
+        ApprovalId: string;
+        RoleId: string;
+        /** @description Id aplikacji z `proxy.apps`. */
+        ServerId: string;
+        OperatorId: string;
+        Search: string;
+        SortDir: "asc" | "desc";
+        Limit50: number;
+        /** @description Nieprzezroczysty kursor z `nextCursor` (keyset). */
+        Cursor: string;
+        /** @description Kursor z `nextCursor` (offset jako string). */
+        OffsetCursor: string;
+        /** @description Preset okna. Domyślnie `today`; pomiń i podaj `from` + `to` dla zakresu własnego (max 90 dni). */
+        Range: "today" | "24h" | "7d" | "30d";
+        /** @description ISO 8601 ze strefą czasową. */
+        From: string;
+        /** @description ISO 8601 ze strefą czasową, wyłącznie. */
+        To: string;
+        /** @description Strefa IANA; domyślnie ze snapshotu ustawień. */
+        Tz: string;
+        /** @description Domyślnie dobierany do okna. */
+        Bucket: "5m" | "15m" | "1h" | "1d";
+        TopLimit: number;
+    };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Identyfikator decyzji w audycie. */
+        "X-Decision-Id": string;
+        /** @description Sekundy do ponowienia. */
+        "Retry-After": number;
+    };
     pathItems: never;
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    getHealth: {
+    health: {
         parameters: {
             query?: never;
             header?: never;
@@ -1536,51 +2004,18 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Service is healthy */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
-    };
-    getDbTest: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Rows from the Demo table */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DbTestResponse"];
-                };
-            };
-            /** @description Supabase query failed */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Supabase credentials are not configured */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": {
+                        /** @constant */
+                        status: "ok";
+                        /** @description Rewizja snapshotu konfiguracji w pamięci. */
+                        config_revision: number;
+                    };
                 };
             };
         };
@@ -1588,18 +2023,17 @@ export interface operations {
     getOverview: {
         parameters: {
             query?: {
-                /** @description Preset window. Calendar-aware (`today`) uses `tz`; rolling presets are relative to now. Default: today. */
-                range?: components["schemas"]["OverviewRangePreset"];
-                /** @description Custom interval start (inclusive), ISO-8601. Must be paired with `to`. Max span 90 days. */
-                from?: string;
-                /** @description Custom interval end (exclusive), ISO-8601. Must be paired with `from`. */
-                to?: string;
-                /** @description IANA timezone for `today` boundaries and labels (e.g. Europe/Warsaw). */
-                tz?: string;
-                /** @description Series granularity. If omitted, backend auto-selects (today/24h→5m, 7d→1h, 30d→1d; custom keeps ≤~300 points). */
-                bucket?: components["schemas"]["OverviewBucket"];
-                /** @description Max items in topAgents and topTools. */
-                top_limit?: number;
+                /** @description Preset okna. Domyślnie `today`; pomiń i podaj `from` + `to` dla zakresu własnego (max 90 dni). */
+                range?: components["parameters"]["Range"];
+                /** @description ISO 8601 ze strefą czasową. */
+                from?: components["parameters"]["From"];
+                /** @description ISO 8601 ze strefą czasową, wyłącznie. */
+                to?: components["parameters"]["To"];
+                /** @description Strefa IANA; domyślnie ze snapshotu ustawień. */
+                tz?: components["parameters"]["Tz"];
+                /** @description Domyślnie dobierany do okna. */
+                bucket?: components["parameters"]["Bucket"];
+                top_limit?: components["parameters"]["TopLimit"];
             };
             header?: never;
             path?: never;
@@ -1607,69 +2041,32 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Overview metrics for the resolved window */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OverviewResponse"];
+                    "application/json": components["schemas"]["Overview"];
                 };
             };
-            /** @description Invalid range, bucket, or timezone */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "detail": "Custom range requires both from and to; span must be ≤ 90 days."
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listAgents: {
         parameters: {
             query?: {
-                search?: string;
-                sort?: string;
-                sort_dir?: "asc" | "desc";
-                limit?: number;
-                cursor?: string;
-                /** @description Comma-separated AgentStatus values */
-                status?: string;
+                search?: components["parameters"]["Search"];
+                /** @description Wiele wartości — powtórzony parametr albo lista po przecinku. */
+                status?: components["schemas"]["AgentStatus"][];
                 role_id?: string;
+                sort?: "name" | "role" | "status" | "api_key" | "last_seen";
+                sort_dir?: components["parameters"]["SortDir"];
+                limit?: components["parameters"]["Limit50"];
+                /** @description Nieprzezroczysty kursor z `nextCursor` (keyset). */
+                cursor?: components["parameters"]["Cursor"];
             };
             header?: never;
             path?: never;
@@ -1677,51 +2074,46 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Agent list */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentListResponse"];
+                    "application/json": components["schemas"]["AgentPage"];
                 };
             };
-            /** @description Invalid request */
-            400: {
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCreate"];
+            };
+        };
+        responses: {
+            /** @description Utworzony; `apiKey` pokazywany tylko raz */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": components["schemas"]["AgentWithKey"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
         };
     };
     getAgent: {
@@ -1729,57 +2121,16 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Agent */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Agent"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Agent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     patchAgent: {
@@ -1787,211 +2138,102 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AgentPatchRequest"];
+                "application/json": components["schemas"]["AgentPatch"];
             };
         };
         responses: {
-            /** @description Updated agent */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Agent"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Agent"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
-    revokeAgentKey: {
+    revokeAgent: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Agent with revoked key */
-            200: {
+            200: components["responses"]["Agent"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createAgentKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Klucz utworzony */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Agent"];
+                    "application/json": components["schemas"]["AgentWithKey"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Already revoked */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getAgentOverview: {
         parameters: {
             query?: {
-                range?: components["schemas"]["OverviewRangePreset"];
-                from?: string;
-                to?: string;
-                tz?: string;
-                bucket?: components["schemas"]["OverviewBucket"];
-                top_limit?: number;
+                /** @description Preset okna. Domyślnie `today`; pomiń i podaj `from` + `to` dla zakresu własnego (max 90 dni). */
+                range?: components["parameters"]["Range"];
+                /** @description ISO 8601 ze strefą czasową. */
+                from?: components["parameters"]["From"];
+                /** @description ISO 8601 ze strefą czasową, wyłącznie. */
+                to?: components["parameters"]["To"];
+                /** @description Strefa IANA; domyślnie ze snapshotu ustawień. */
+                tz?: components["parameters"]["Tz"];
+                /** @description Domyślnie dobierany do okna. */
+                bucket?: components["parameters"]["Bucket"];
+                top_limit?: components["parameters"]["TopLimit"];
             };
             header?: never;
             path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Agent overview metrics */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AgentOverviewResponse"];
+                    "application/json": components["schemas"]["AgentOverview"];
                 };
             };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getAgentPosture: {
@@ -1999,13 +2241,13 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Agent posture */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2014,42 +2256,9 @@ export interface operations {
                     "application/json": components["schemas"]["AgentPosture"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     attachAgentMcp: {
@@ -2057,67 +2266,15 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
-                serverId: string;
+                agent_id: components["parameters"]["AgentId"];
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Attached */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentMcpAttachResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Auth required or already attached */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            501: components["responses"]["NotImplemented"];
         };
     };
     detachAgentMcp: {
@@ -2125,637 +2282,231 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
-                serverId: string;
+                agent_id: components["parameters"]["AgentId"];
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Detached */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AgentMcpAttachResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            501: components["responses"]["NotImplemented"];
         };
     };
-    authorizeAgentMcp: {
+    authAgentMcp: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
-                serverId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["McpAuthCompleteRequest"];
-            };
-        };
-        responses: {
-            /** @description Auth start URL or attach confirmation */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["McpAuthStartResponse"] | components["schemas"]["McpAuthCompleteResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    listAgentRules: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Rules */
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    listRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PolicyRuleListResponse"];
+                    "application/json": {
+                        items: components["schemas"]["Rule"][];
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
-    createAgentRule: {
+    createRule: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["PolicyRuleCreateRequest"];
+                "application/json": components["schemas"]["RuleBody"];
             };
         };
         responses: {
-            /** @description Created rule */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PolicyRule"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            201: components["responses"]["Rule"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
-    getAgentRulesMeta: {
+    updateRule: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Editor metadata */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RulesMetaResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    dryRunAgentRules: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
+                rule_id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RulesDryRunRequest"];
+                "application/json": components["schemas"]["RuleBody"];
             };
         };
         responses: {
-            /** @description Dry-run result */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RulesDryRunResponse"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Rule"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
-    updateAgentRule: {
+    deleteRule: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
-                ruleId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PolicyRuleCreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Updated rule */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PolicyRule"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    deleteAgentRule: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                agentId: string;
-                ruleId: string;
+                agent_id: components["parameters"]["AgentId"];
+                rule_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Deleted */
+            /** @description Usunięta */
             204: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
-    listAgentQuotas: {
+    getRulesMeta: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Quotas */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuotaListResponse"];
+                    "application/json": components["schemas"]["RulesMeta"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
-    createAgentQuota: {
+    dryRunRules: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                agentId: string;
+                agent_id: components["parameters"]["AgentId"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["QuotaCreateRequest"];
+                "application/json": components["schemas"]["DryRunBody"];
             };
         };
         responses: {
-            /** @description Created quota */
-            201: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RateLimitQuota"];
+                    "application/json": components["schemas"]["DryRunResult"];
                 };
             };
-            /** @description Invalid request */
-            400: {
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listQuotas: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+                    "application/json": {
+                        items: components["schemas"]["Quota"][];
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createQuota: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agent_id: components["parameters"]["AgentId"];
             };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuotaCreate"];
             };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+        };
+        responses: {
+            201: components["responses"]["Quota"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     patchQuota: {
@@ -2763,81 +2514,34 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                quotaId: string;
+                quota_id: string;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["QuotaPatchRequest"];
+                "application/json": components["schemas"]["QuotaPatch"];
             };
         };
         responses: {
-            /** @description Updated quota */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RateLimitQuota"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Quota"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listApprovals: {
         parameters: {
             query?: {
-                search?: string;
-                sort?: string;
-                sort_dir?: "asc" | "desc";
-                limit?: number;
-                cursor?: string;
+                search?: components["parameters"]["Search"];
                 agent_id?: string;
+                /** @description `age` sortuje po wieku (desc = najstarsze pierwsze). */
+                sort?: "age" | "created_at" | "ttl" | "tool" | "agent";
+                sort_dir?: components["parameters"]["SortDir"];
+                limit?: components["parameters"]["Limit50"];
+                /** @description Nieprzezroczysty kursor z `nextCursor` (keyset). */
+                cursor?: components["parameters"]["Cursor"];
             };
             header?: never;
             path?: never;
@@ -2845,69 +2549,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Pending approvals */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    /**
-                     * @example {
-                     *       "items": [
-                     *         {
-                     *           "id": "apr_01",
-                     *           "tool": "shop.checkout",
-                     *           "agentId": "agt_purchasing_01",
-                     *           "agentName": "Purchasing",
-                     *           "specialist": "local/purchasing",
-                     *           "allowProb": 0.41,
-                     *           "denyProb": 0.38,
-                     *           "ageSeconds": 42,
-                     *           "ttlSeconds": 300,
-                     *           "matchedRules": [
-                     *             "elevated spend or non-HQ"
-                     *           ],
-                     *           "modelChoice": "caution → human",
-                     *           "argsRedacted": {
-                     *             "sku": "NB-A4-80",
-                     *             "total_eur": "***"
-                     *           },
-                     *           "createdAt": "2026-10-03T11:54:00Z"
-                     *         }
-                     *       ],
-                     *       "nextCursor": null
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ApprovalListResponse"];
+                    "application/json": {
+                        items: components["schemas"]["Approval"][];
+                        nextCursor: components["schemas"]["NextCursor"];
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     getApproval: {
@@ -2915,57 +2571,24 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                approvalId: string;
+                approval_id: components["parameters"]["ApprovalId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Approval */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApprovalRequest"];
+                    "application/json": components["schemas"]["Approval"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     allowApproval: {
@@ -2973,66 +2596,17 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                approvalId: string;
+                approval_id: components["parameters"]["ApprovalId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Resolved */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApprovalResolveResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Already resolved or expired */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["ApprovalResolution"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     denyApproval: {
@@ -3040,70 +2614,24 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                approvalId: string;
+                approval_id: components["parameters"]["ApprovalId"];
             };
             cookie?: never;
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["ApprovalDenyRequest"];
+                "application/json": {
+                    reason?: string | null;
+                };
             };
         };
         responses: {
-            /** @description Resolved */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApprovalResolveResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Already resolved or expired */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["ApprovalResolution"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     allowApprovalTemporary: {
@@ -3111,95 +2639,48 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                approvalId: string;
+                approval_id: components["parameters"]["ApprovalId"];
             };
             cookie?: never;
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["ApprovalAllowTemporaryRequest"];
+                "application/json": {
+                    ttlSeconds?: number | null;
+                };
             };
         };
         responses: {
-            /** @description Resolved */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApprovalResolveResponse"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Already resolved or expired */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["ApprovalResolution"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
-    listAuditEvents: {
+    listAudit: {
         parameters: {
             query?: {
+                /** @description Szuka w nazwie toola i w `argsRedacted`. */
                 search?: string;
-                sort?: string;
-                sort_dir?: "asc" | "desc";
-                limit?: number;
-                cursor?: string;
                 agent_id?: string;
-                /** @description Comma-separated DecisionOutcome values */
-                decision?: string;
+                /** @description ILIKE (można użyć `%`). */
+                agent_name?: string;
+                /** @description Wiele wartości — powtórzony parametr albo lista po przecinku. */
+                decision?: components["schemas"]["UiDecision"][];
+                /** @description ISO 8601 ze strefą czasową. */
+                from?: components["parameters"]["From"];
+                /** @description ISO 8601 ze strefą czasową, wyłącznie. */
+                to?: components["parameters"]["To"];
+                /** @description Prefiks nazwy toola. */
                 tool?: string;
-                from?: string;
-                to?: string;
+                session_id?: string;
+                sort?: "time" | "tool" | "agent" | "decision";
+                sort_dir?: components["parameters"]["SortDir"];
+                limit?: components["parameters"]["Limit50"];
+                /** @description Nieprzezroczysty kursor z `nextCursor` (keyset). */
+                cursor?: components["parameters"]["Cursor"];
             };
             header?: never;
             path?: never;
@@ -3207,51 +2688,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Audit events */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditListResponse"];
+                    "application/json": {
+                        items: components["schemas"]["AuditEvent"][];
+                        nextCursor: components["schemas"]["NextCursor"];
+                    };
                 };
             };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     getAuditEvent: {
@@ -3259,66 +2710,35 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                eventId: string;
+                /** @description `decision_id` */
+                event_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Audit event */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AuditEvent"];
+                    "application/json": components["schemas"]["AuditEventDetail"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
-    listSpecialists: {
+    listSessions: {
         parameters: {
             query?: {
                 agent_id?: string;
-                health?: components["schemas"]["SpecialistHealth"];
-                limit?: number;
-                cursor?: string;
+                status?: components["schemas"]["SessionStatus"];
+                limit?: components["parameters"]["Limit50"];
+                /** @description Nieprzezroczysty kursor z `nextCursor` (keyset). */
+                cursor?: components["parameters"]["Cursor"];
             };
             header?: never;
             path?: never;
@@ -3326,111 +2746,58 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Specialists */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SpecialistListResponse"];
+                    "application/json": {
+                        items: components["schemas"]["Session"][];
+                        nextCursor: components["schemas"]["NextCursor"];
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
-    getSpecialist: {
+    getSession: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                specialistId: string;
+                session_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Specialist */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Specialist"];
+                    "application/json": components["schemas"]["SessionDetail"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     listRoles: {
         parameters: {
             query?: {
-                search?: string;
-                sort?: string;
-                sort_dir?: "asc" | "desc";
-                limit?: number;
-                cursor?: string;
+                search?: components["parameters"]["Search"];
                 status?: components["schemas"]["RoleStatus"];
+                sort?: "name" | "status" | "agents" | "grants" | "updated";
+                sort_dir?: components["parameters"]["SortDir"];
+                limit?: components["parameters"]["Limit50"];
+                /** @description Kursor z `nextCursor` (offset jako string). */
+                cursor?: components["parameters"]["OffsetCursor"];
             };
             header?: never;
             path?: never;
@@ -3438,42 +2805,41 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Roles */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["RoleListResponse"];
+                    "application/json": {
+                        items: components["schemas"]["RoleSummary"][];
+                        nextCursor: components["schemas"]["NextCursor"];
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createRole: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleCreate"];
             };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+        };
+        responses: {
+            201: components["responses"]["Role"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
         };
     };
     getRole: {
@@ -3481,57 +2847,16 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                roleId: string;
+                role_id: components["parameters"]["RoleId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Role */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoleDetail"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Role"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     patchRole: {
@@ -3539,79 +2864,22 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                roleId: string;
+                role_id: components["parameters"]["RoleId"];
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RolePatchRequest"];
+                "application/json": components["schemas"]["RolePatch"];
             };
         };
         responses: {
-            /** @description Updated role */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoleDetail"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Archived role cannot be edited */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Role"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     publishRole: {
@@ -3619,66 +2887,17 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                roleId: string;
+                role_id: components["parameters"]["RoleId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Published role */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoleDetail"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Invalid status transition */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Role"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     archiveRole: {
@@ -3686,76 +2905,29 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                roleId: string;
+                role_id: components["parameters"]["RoleId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Archived role */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RoleDetail"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Invalid status transition */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Role"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
-    listMcpServers: {
+    listServers: {
         parameters: {
             query?: {
+                /** @description `hosted` zawsze zwraca pustą listę. */
                 kind?: "all" | "remote" | "hosted";
-                health?: components["schemas"]["McpHealth"];
-                search?: string;
+                health?: components["schemas"]["ServerHealth"];
+                search?: components["parameters"]["Search"];
                 limit?: number;
-                cursor?: string;
+                /** @description Kursor z `nextCursor` (offset jako string). */
+                cursor?: components["parameters"]["OffsetCursor"];
             };
             header?: never;
             path?: never;
@@ -3763,42 +2935,20 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description MCP servers */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["McpListResponse"];
+                    "application/json": {
+                        items: components["schemas"]["Server"][];
+                        nextCursor: components["schemas"]["NextCursor"];
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listHostedSourceOptions: {
@@ -3810,444 +2960,163 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Source options */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["HostedSourceOptionsResponse"];
+                    "application/json": {
+                        /** @enum {string} */
+                        id: "rest" | "openapi" | "database" | "package" | "template";
+                        label: string;
+                        blurb: string;
+                        urlPlaceholder: string;
+                    }[];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
-    discoverRemoteMcp: {
+    createHostedServer: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RemoteDiscoverRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Discovery result */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RemoteDiscoverResponse"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Upstream discover failed */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            501: components["responses"]["NotImplemented"];
         };
     };
-    createRemoteMcp: {
+    discoverHostedServer: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RemoteCreateRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Created server */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["McpServer"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Duplicate URL */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            501: components["responses"]["NotImplemented"];
         };
     };
-    discoverHostedMcp: {
+    createRemoteServer: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HostedDiscoverRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Proposed tools */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HostedDiscoverResponse"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Upstream scan failed */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            501: components["responses"]["NotImplemented"];
         };
     };
-    createHostedMcp: {
+    discoverRemoteServer: {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["HostedCreateRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
-            /** @description Provisioned server */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["McpServer"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Duplicate slug */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Provision failed */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            501: components["responses"]["NotImplemented"];
         };
     };
-    getMcpServer: {
+    getServer: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                serverId: string;
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description MCP server */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["McpServer"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Server"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
-    deleteMcpServer: {
+    deleteServer: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                serverId: string;
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
+            501: components["responses"]["NotImplemented"];
+        };
+    };
+    patchServer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled?: boolean | null;
+                    name?: string | null;
                 };
             };
         };
+        responses: {
+            200: components["responses"]["Server"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
     };
-    getWorkspaceSettings: {
+    patchServerTool: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Id aplikacji z `proxy.apps`. */
+                server_id: components["parameters"]["ServerId"];
+                /** @description Nazwa toola, z prefiksem `<server_id>.` lub bez. */
+                tool: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled?: boolean | null;
+                    kind?: components["schemas"]["ToolKind"] | null;
+                    /** @enum {string|null} */
+                    scanMode?: "all_strings" | "selected" | "none" | null;
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["Server"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listPolicyPacks: {
         parameters: {
             query?: never;
             header?: never;
@@ -4256,45 +3125,130 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Workspace settings */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WorkspaceSettings"];
+                    "application/json": {
+                        items: components["schemas"]["PolicyPack"][];
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getPolicyPack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
             };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PolicyPack"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putPolicyPack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
             };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    cedarPolicies?: string | null;
+                    cedarSchema?: string | null;
+                    params?: {
+                        [key: string]: unknown;
+                    } | null;
+                    paramsSchema?: {
+                        [key: string]: unknown;
+                    } | null;
                 };
             };
         };
+        responses: {
+            200: components["responses"]["PolicyPack"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
     };
-    patchWorkspaceSettings: {
+    putPolicyOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+                agent_id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    params: {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+        responses: {
+            200: components["responses"]["PolicyPack"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deletePolicyOverride: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                app_id: string;
+                agent_id: components["parameters"]["AgentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PolicyPack"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getWorkspace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["Workspace"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    patchWorkspace: {
         parameters: {
             query?: never;
             header?: never;
@@ -4303,65 +3257,33 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WorkspaceSettingsPatch"];
+                "application/json": {
+                    orgName?: string | null;
+                    /** @enum {integer|null} */
+                    defaultApprovalTtlSeconds?: 300 | 900 | 1800 | 3600 | null;
+                    specialistFailClosed?: boolean | null;
+                    /** @enum {integer|null} */
+                    auditRetentionDays?: 30 | 90 | 180 | 365 | null;
+                    /** @enum {string|null} */
+                    authMode?: "invite_only" | null;
+                };
             };
         };
         responses: {
-            /** @description Updated settings */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WorkspaceSettings"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Workspace"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     listOperators: {
         parameters: {
             query?: {
-                search?: string;
-                sort?: string;
-                sort_dir?: "asc" | "desc";
+                sort?: "name" | "email" | "role" | "status" | "invited" | "last_active";
+                sort_dir?: components["parameters"]["SortDir"];
                 limit?: number;
-                cursor?: string;
+                /** @description Kursor z `nextCursor` (offset jako string). */
+                cursor?: components["parameters"]["OffsetCursor"];
             };
             header?: never;
             path?: never;
@@ -4369,42 +3291,21 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Operators */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OperatorListResponse"];
+                    "application/json": {
+                        items: components["schemas"]["Operator"][];
+                        nextCursor: components["schemas"]["NextCursor"];
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     inviteOperator: {
@@ -4416,64 +3317,25 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["OperatorInviteRequest"];
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                    /** @enum {string} */
+                    role: "admin" | "operator" | "viewer";
+                    /**
+                     * @description Pusta → część lokalna adresu e-mail.
+                     * @default
+                     */
+                    name?: string;
+                };
             };
         };
         responses: {
-            /** @description Invited operator */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Operator"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Email already on roster */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            201: components["responses"]["Operator"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
         };
     };
     resendOperatorInvite: {
@@ -4481,66 +3343,17 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                operatorId: string;
+                operator_id: components["parameters"]["OperatorId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Updated operator */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Operator"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not in invited state */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Operator"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     disableOperator: {
@@ -4548,66 +3361,17 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                operatorId: string;
+                operator_id: components["parameters"]["OperatorId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Disabled operator */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Operator"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Cannot disable owner */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Operator"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     enableOperator: {
@@ -4615,57 +3379,17 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                operatorId: string;
+                operator_id: components["parameters"]["OperatorId"];
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Enabled operator */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Operator"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            200: components["responses"]["Operator"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
         };
     };
     getMe: {
@@ -4677,45 +3401,20 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Profile */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MeResponse"];
+                    "application/json": components["schemas"]["Profile"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
-    listSimulatorScenarios: {
+    listSpecialists: {
         parameters: {
             query?: never;
             header?: never;
@@ -4724,187 +3423,45 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Scenarios */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SimulatorScenarioListResponse"];
+                    "application/json": {
+                        items: components["schemas"]["Specialist"][];
+                        nextCursor: null;
+                    };
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not implemented yet */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
-    createSimulatorRun: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SimulatorRunRequest"];
-            };
-        };
-        responses: {
-            /** @description Run result */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SimulatorRun"];
-                };
-            };
-            /** @description Invalid request */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not implemented yet */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    getSimulatorRun: {
+    getSpecialist: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                runId: string;
+                specialist_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Run */
+            /** @description OK */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SimulatorRun"];
+                    "application/json": components["schemas"]["Specialist"];
                 };
             };
-            /** @description Missing or invalid authentication */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Authenticated but not allowed for this org */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Resource not found */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Unexpected server error */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description Not implemented yet */
-            501: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

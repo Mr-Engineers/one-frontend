@@ -1,5 +1,6 @@
 import createClient from 'openapi-fetch'
 
+import { config } from '@/config'
 import { supabase } from '@/lib/supabase'
 
 import type { paths } from './schema'
@@ -7,12 +8,12 @@ import type { paths } from './schema'
 /**
  * Shared OpenAPI client.
  *
- * In development, Vite proxies `/api` → the Python server (see vite.config.ts).
- * Override with VITE_API_BASE_URL when needed (e.g. production).
- * Attaches the Supabase access token when a session exists.
+ * Paths are relative to `config.apiBaseUrl` (default `/api`). Vite/nginx map
+ * `/api/...` → backend `/api/v1/...`. Attaches the Supabase Bearer token when
+ * a session exists.
  */
 export const client = createClient<paths>({
-  baseUrl: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  baseUrl: config.apiBaseUrl,
 })
 
 client.use({

@@ -10,7 +10,7 @@ cp .env.example .env
 npm run dev
 ```
 
-App runs at `http://localhost:5173`. API calls to `/api/*` are proxied to `http://127.0.0.1:8000` (path prefix stripped).
+App runs at `http://localhost:5173`. API calls to `/api/*` are proxied to `http://proxy-server:8080/api/v1/*` (override with `API_PROXY_TARGET`).
 
 Auth uses Supabase (Proxy Database). Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in `.env`. Login is invite-only (no self-registration); provision operators in the Supabase dashboard or a future settings screen. API requests send the Supabase Bearer token when signed in.
 
@@ -19,9 +19,12 @@ Auth uses Supabase (Proxy Database). Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_
 ```
 src/
   api/
-    client.ts      # shared openapi-fetch client (+ auth header; for later wiring)
+    client.ts      # shared openapi-fetch client (+ auth header)
     schema.d.ts    # generated types from OpenAPI (do not edit by hand)
-    health.ts      # example endpoint module
+    http.ts        # ApiError + unwrap helper
+    types.ts       # ApiQuery / ApiResponse / Schema helpers
+    audit.ts       # audit log endpoints
+    health.ts      # health check
     index.ts       # public API exports
   mocks/           # UI mock data until screens call the API
   pages/           # route pages (dashboard skeleton)
@@ -34,29 +37,38 @@ src/
   lib/
     supabase.ts    # Supabase browser client
 openapi/
-  openapi.json     # drop the backend OpenAPI spec here
+  openapi.yaml     # backend OpenAPI source of truth
+  openapi.json     # generated Admin API projection (do not edit)
 ```
 
 Screens read from `src/mocks` for now. The `/api` proxy and openapi client stay so modules under `src/api` can replace mocks later.
 
 ## Syncing with the Python OpenAPI spec
 
-1. Save the backend spec as `openapi/openapi.json` (or download it, e.g. from `http://127.0.0.1:8000/openapi.json`).
-2. Regenerate types:
+1. Update `openapi/openapi.yaml` from the backend.
+2. Regenerate the frontend projection + types:
 
 ```bash
 npm run api:generate
 ```
 
-3. Add or update endpoint modules under `src/api/` (one domain per file), using the typed client:
+This strips `/api/v1` (Vite/nginx already map `/api` → `/api/v1`) and keeps Admin + `/health` paths.
+
+3. Add or update endpoint modules under `src/api/` (one domain per file):
 
 ```ts
 import { client } from './client'
+import { unwrap } from './http'
+import type { ApiQuery, ApiResponse } from './types'
 
-export async function listItems() {
-  const { data, error } = await client.GET('/items')
-  if (error) throw error
-  return data
+export type ListItemsQuery = ApiQuery<'/items'>
+export type ItemsResponse = ApiResponse<'/items'>
+
+export async function listItems(query?: ListItemsQuery) {
+  return unwrap(
+    await client.GET('/items', { params: { query } }),
+    'Failed to list items',
+  )
 }
 ```
 
@@ -75,4 +87,4 @@ npx shadcn@latest add dialog
 | --- | --- |
 | `npm run dev` | Start Vite dev server |
 | `npm run build` | Typecheck + production build |
-| `npm run api:generate` | Regenerate `src/api/schema.d.ts` from `openapi/openapi.json` |
+| `npm run api:generate` | Project `openapi.yaml` → `openapi.json` + regenerate `schema.d.ts` |

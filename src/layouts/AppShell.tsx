@@ -18,8 +18,8 @@ export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   return (
-    <div className="bg-background flex min-h-svh">
-      <aside className="border-border bg-sidebar text-sidebar-foreground hidden w-56 shrink-0 flex-col border-r md:flex">
+    <div className="bg-background flex h-svh overflow-hidden">
+      <aside className="border-border bg-sidebar text-sidebar-foreground hidden h-full w-56 shrink-0 flex-col border-r md:flex">
         <SideNavPanel />
       </aside>
 

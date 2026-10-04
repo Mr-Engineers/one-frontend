@@ -1,5 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useParams } from 'react-router-dom'
 
+import {
+  getAuditEvent,
+  listAudit,
+  type AuditEvent,
+  type AuditEventDetail,
+} from '@/api'
 import {
   CollapsibleDetails,
   DetailHeader,
@@ -10,12 +17,16 @@ import {
   humanizeDecisionOutcome,
   humanizeDecisionStage,
 } from '@/components/list/DetailMeta'
-import { ListEmptyState } from '@/components/list/EmptyState'
-import { TableSkeleton } from '@/components/list/ListSkeletons'
+import { EmptyState, ListEmptyState } from '@/components/list/EmptyState'
+import {
+  DetailPanelSkeleton,
+  TableSkeleton,
+} from '@/components/list/ListSkeletons'
 import { SortableTableHead } from '@/components/list/SortableTableHead'
 import { TableFilterBar } from '@/components/list/TableFilterBar'
 import { SquashListArea } from '@/components/squash-reveal'
 import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -23,8 +34,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useApiQuery } from '@/hooks/useApiQuery'
 import { useListDetailSquash } from '@/hooks/useListDetailSquash'
-import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import {
   applyTableFilter,
   type FilterColumnDef,
@@ -36,48 +47,102 @@ import {
   type TableSortState,
 } from '@/lib/table-sort'
 import { routes } from '@/lib/routes'
-import { mockAuditEvents, type AuditEvent } from '@/mocks'
 
 const DETAIL_TITLE_ID = 'audit-detail-title'
+const EMPTY_EVENTS: AuditEvent[] = []
+const DECISION_OPTIONS = ['allow', 'caution', 'deny', 'rate_limited'] as const
 
-const AUDIT_FILTER_COLUMNS: FilterColumnDef<AuditEvent>[] = [
-  {
-    id: 'time',
-    label: 'Time',
-    type: 'timestamptz',
-    getValue: (r) => r.timestamp,
-  },
-  { id: 'tool', label: 'Tool', type: 'text', getValue: (r) => r.tool },
-  {
-    id: 'agent',
-    label: 'Agent',
-    type: 'enum',
-    getValue: (r) => r.agentName,
-    options: ['Purchasing', 'Support'],
-  },
-  {
-    id: 'decision',
-    label: 'Decision',
-    type: 'enum',
-    getValue: (r) => r.decision,
-    options: ['allow', 'caution', 'deny', 'rate_limited'],
-  },
-]
+function buildFilterColumns(
+  agentNames: string[],
+): FilterColumnDef<AuditEvent>[] {
+  return [
+    {
+      id: 'time',
+      label: 'Time',
+      type: 'timestamptz',
+      getValue: (r) => r.timestamp,
+    },
+    { id: 'tool', label: 'Tool', type: 'text', getValue: (r) => r.tool },
+    {
+      id: 'agent',
+      label: 'Agent',
+      type: 'enum',
+      getValue: (r) => r.agentName,
+      options: agentNames,
+    },
+    {
+      id: 'decision',
+      label: 'Decision',
+      type: 'enum',
+      getValue: (r) => r.decision,
+      options: [...DECISION_OPTIONS],
+    },
+  ]
+}
 
 export function AuditPage() {
-  const loading = useSimulatedLoading()
-  const events = mockAuditEvents
+  const { eventId: routeEventId } = useParams()
   const [filters, setFilters] = useState<FilterRule[]>([])
   const [sort, setSort] = useState<TableSortState>(null)
+  /** Events fetched for deep-links that aren't on the first list page. */
+  const [pinnedEvents, setPinnedEvents] = useState<AuditEvent[]>([])
+
+  const fetchList = useCallback(
+    () => listAudit({ limit: 50, sort: 'time', sort_dir: 'desc' }),
+    [],
+  )
+  const listQuery = useApiQuery(['audit', 'list'], fetchList)
+
+  const listItems = listQuery.data?.items ?? EMPTY_EVENTS
+
+  const events = useMemo(() => {
+    if (pinnedEvents.length === 0) return listItems
+    const ids = new Set(listItems.map((e) => e.id))
+    const extras = pinnedEvents.filter((e) => !ids.has(e.id))
+    return extras.length === 0 ? listItems : [...extras, ...listItems]
+  }, [listItems, pinnedEvents])
+
+  // Deep-link: if the URL event isn't on the first page, fetch and pin it.
+  useEffect(() => {
+    if (!routeEventId || listQuery.loading) return
+    if (listItems.some((e) => e.id === routeEventId)) return
+    if (pinnedEvents.some((e) => e.id === routeEventId)) return
+
+    let cancelled = false
+    getAuditEvent(routeEventId)
+      .then((detail) => {
+        if (cancelled) return
+        setPinnedEvents((prev) =>
+          prev.some((e) => e.id === detail.id) ? prev : [detail, ...prev],
+        )
+      })
+      .catch(() => {
+        /* detail panel fetch surfaces the error */
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [routeEventId, listItems, pinnedEvents, listQuery.loading])
+
+  const agentNames = useMemo(() => {
+    const names = new Set(events.map((e) => e.agentName).filter(Boolean))
+    return [...names].sort((a, b) => a.localeCompare(b))
+  }, [events])
+
+  const filterColumns = useMemo(
+    () => buildFilterColumns(agentNames),
+    [agentNames],
+  )
 
   const visible = useMemo(
     () =>
       applyTableSort(
-        applyTableFilter(events, AUDIT_FILTER_COLUMNS, filters),
-        AUDIT_FILTER_COLUMNS,
+        applyTableFilter(events, filterColumns, filters),
+        filterColumns,
         sort,
       ),
-    [events, filters, sort],
+    [events, filterColumns, filters, sort],
   )
 
   const { squash, openRow, closeRow } = useListDetailSquash<AuditEvent>({
@@ -87,12 +152,22 @@ export function AuditPage() {
     detailPath: routes.auditDetail,
   })
 
-  const list = loading ? (
+  const list = listQuery.loading ? (
     <TableSkeleton columns={4} rows={10} />
+  ) : listQuery.error ? (
+    <EmptyState
+      title="Couldn’t load audit log"
+      description={listQuery.error.message}
+      action={
+        <Button type="button" variant="outline" size="sm" onClick={listQuery.refetch}>
+          Retry
+        </Button>
+      }
+    />
   ) : (
     <>
       <TableFilterBar
-        columns={AUDIT_FILTER_COLUMNS}
+        columns={filterColumns}
         rules={filters}
         onRulesChange={setFilters}
         rowCount={visible.length}
@@ -177,34 +252,74 @@ export function AuditPage() {
 }
 
 function AuditDetail({ event }: { event: AuditEvent }) {
+  const fetchDetail = useCallback(() => getAuditEvent(event.id), [event.id])
+  const detailQuery = useApiQuery(['audit', 'event', event.id], fetchDetail)
+
+  if (detailQuery.loading && !detailQuery.data) {
+    return <DetailPanelSkeleton sections={3} />
+  }
+
+  if (detailQuery.error && !detailQuery.data) {
+    return (
+      <EmptyState
+        title="Couldn’t load event"
+        description={detailQuery.error.message}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={detailQuery.refetch}
+          >
+            Retry
+          </Button>
+        }
+      />
+    )
+  }
+
+  const view: AuditEvent | AuditEventDetail = detailQuery.data ?? event
+
   return (
     <>
       <DetailHeader
         titleId={DETAIL_TITLE_ID}
-        title={event.tool}
-        subtitle={`${event.agentName} · ${formatTimestamp(event.timestamp)}`}
+        title={view.tool}
+        subtitle={`${view.agentName} · ${formatTimestamp(view.timestamp)}`}
       />
       <DetailSection title="Summary">
         <MetaGrid
           items={[
             {
               label: 'Decision',
-              value: <StatusBadge status={event.decision} />,
+              value: <StatusBadge status={view.decision} />,
             },
             {
               label: 'Agent',
-              value: <AgentBadge agentId={event.agentId} />,
+              value: <AgentBadge agentId={view.agentId} />,
             },
             {
               label: 'When',
-              value: formatTimestamp(event.timestamp),
+              value: formatTimestamp(view.timestamp),
             },
+            ...(detailQuery.data
+              ? [
+                  {
+                    label: 'Latency',
+                    value: `${detailQuery.data.latencyMs} ms`,
+                  },
+                  {
+                    label: 'App',
+                    value: detailQuery.data.app,
+                  },
+                ]
+              : []),
           ]}
         />
       </DetailSection>
       <DetailSection title="How it was decided">
         <ol className="border-border divide-border flex flex-col divide-y border">
-          {event.decisionChain.map((step) => (
+          {view.decisionChain.map((step) => (
             <li
               key={step.stage}
               className="flex items-start justify-between gap-3 px-3 py-2"
@@ -226,7 +341,7 @@ function AuditDetail({ event }: { event: AuditEvent }) {
       </DetailSection>
       <DetailSection title="Request details">
         <CollapsibleDetails summary="Show request data (sensitive fields hidden)">
-          <JsonBlock value={event.argsRedacted} />
+          <JsonBlock value={view.argsRedacted} />
         </CollapsibleDetails>
       </DetailSection>
     </>
