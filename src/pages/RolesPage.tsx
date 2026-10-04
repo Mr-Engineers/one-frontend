@@ -476,13 +476,16 @@ function RoleDetailPanel({
   }
 
   function cancelGrants() {
+    if (!role) return
     setDraftGrants(cloneGrants(role.grants))
     onError(null)
   }
 
   function saveGrants() {
+    if (!role) return
+    const id = role.id
     void run(
-      () => patchRole(role.id, { grants: grantsToInput(draftGrants) }),
+      () => patchRole(id, { grants: grantsToInput(draftGrants) }),
       onUpdated,
     )
   }

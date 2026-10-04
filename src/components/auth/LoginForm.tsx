@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 
 import { useAuth } from '@/auth/AuthProvider'
+import { JuryIntroDialog } from '@/components/auth/JuryIntroDialog'
 import { Button } from '@/components/ui/button'
 import { APP_NAME } from '@/lib/brand'
 import { Input } from '@/components/ui/input'
@@ -97,6 +98,14 @@ export function LoginForm() {
           </Button>
         </form>
       </div>
+
+      <JuryIntroDialog
+        onUseCredentials={(creds) => {
+          setEmail(creds.email)
+          setPassword(creds.password)
+          setError(null)
+        }}
+      />
     </main>
   )
 }
