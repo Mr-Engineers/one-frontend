@@ -5,12 +5,13 @@ import {
   RiRobot2Line,
   RiServerLine,
   RiShieldCheckLine,
+  RiShieldUserLine,
   RiWebhookLine,
 } from '@remixicon/react'
 
 /**
  * Route paths for the Modus operator dashboard.
- * Keep URLs stable; catalog pages stay deep-linkable but off the side nav.
+ * Keep URLs stable; specialists stay deep-linkable but off the side nav.
  */
 export const routes = {
   // Control plane (authenticated app shell; login is AuthGate)
@@ -22,6 +23,7 @@ export const routes = {
   agents: '/agents',
   agentDetail: (id: string) => `/agents/${id}`,
   mcp: '/mcp',
+  mcpDetail: (id: string) => `/mcp/${id}`,
   audit: '/audit',
   auditDetail: (id: string) => `/audit/${id}`,
   webhooks: '/webhooks',
@@ -62,8 +64,8 @@ export type NavSection = {
 }
 
 /**
- * Side nav — monitor + agent hub + org MCP catalog.
- * Rules live on the agent; roles / specialists stay deep-link-only.
+ * Side nav — monitor + agent hub + roles + org MCP catalog.
+ * Rules live on the agent; specialists stay deep-link-only.
  */
 export const navSections: NavSection[] = [
   {
@@ -94,6 +96,11 @@ export const navSections: NavSection[] = [
         label: 'Agents',
         path: routes.agents,
         icon: RiRobot2Line,
+      },
+      {
+        label: 'Roles',
+        path: routes.roles,
+        icon: RiShieldUserLine,
       },
       {
         label: 'MCP',

@@ -25,6 +25,8 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: apiProxyTarget,
           changeOrigin: true,
+          // Dev ALB uses a self-signed cert; Node rejects it by default → 502.
+          secure: false,
           rewrite: (p) => p.replace(/^\/api/, '/api/v1'),
         },
       },

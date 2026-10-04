@@ -1,3 +1,4 @@
+import type { ServerHealth } from '@/api'
 import { BadgeTheme, ThemedBadge } from '@/components/ui/themed-badge'
 import { AGENT_IDS } from '@/mocks'
 import type {
@@ -50,7 +51,10 @@ const operatorRoleTheme: Record<
   viewer: { theme: BadgeTheme.Gray, label: 'Viewer' },
 }
 
-const mcpHealthTheme: Record<McpHealth, { theme: BadgeTheme; label: string }> = {
+const mcpHealthTheme: Record<
+  McpHealth | ServerHealth,
+  { theme: BadgeTheme; label: string }
+> = {
   healthy: { theme: BadgeTheme.Green, label: 'Healthy' },
   degraded: { theme: BadgeTheme.Yellow, label: 'Degraded' },
   down: { theme: BadgeTheme.Red, label: 'Down' },
@@ -87,7 +91,7 @@ export function McpHealthBadge({
   health,
   size = 'table',
 }: {
-  health: McpHealth
+  health: McpHealth | ServerHealth
   size?: 'default' | 'table'
 }) {
   const { theme, label } = mcpHealthTheme[health]

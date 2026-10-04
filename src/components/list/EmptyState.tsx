@@ -21,7 +21,9 @@ export function EmptyState({
       role="status"
       className={cn(
         'flex flex-col',
-        compact ? 'gap-1 py-0.5' : 'items-start gap-1.5 px-4 py-10',
+        compact
+          ? 'gap-1 py-0.5'
+          : 'min-h-0 flex-1 items-center justify-center gap-1.5 px-4 py-10 text-center',
         className,
       )}
     >

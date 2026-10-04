@@ -1,6 +1,26 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react'
 import { RiMailSendLine } from '@remixicon/react'
 
+import {
+  disableOperator,
+  enableOperator,
+  getWorkspace,
+  inviteOperator,
+  listOperators,
+  patchWorkspace,
+  resendOperatorInvite,
+  type InviteOperatorRole,
+  type Operator,
+  type Workspace,
+  type WorkspacePatch,
+} from '@/api'
 import { formatTimestamp } from '@/components/list/DetailMeta'
 import { EmptyState } from '@/components/list/EmptyState'
 import { SettingsSkeleton } from '@/components/list/ListSkeletons'
@@ -21,7 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
+import { useApiQuery } from '@/hooks/useApiQuery'
 import {
   applyTableSort,
   nextSortState,
@@ -29,16 +49,8 @@ import {
   type TableSortState,
 } from '@/lib/table-sort'
 import { cn } from '@/lib/utils'
-import {
-  createOperatorId,
-  mockOperators,
-  mockWorkspaceSettings,
-  type Operator,
-  type OperatorRole,
-  type WorkspaceSettings,
-} from '@/mocks'
 
-const INVITE_ROLES: OperatorRole[] = ['admin', 'operator', 'viewer']
+const INVITE_ROLES: InviteOperatorRole[] = ['admin', 'operator', 'viewer']
 
 const TTL_OPTIONS = [
   { seconds: 300, label: '5m' },
@@ -58,28 +70,116 @@ const OPERATOR_SORT_COLUMNS: SortColumnDef<Operator>[] = [
   { id: 'last_active', type: 'timestamptz', getValue: (r) => r.lastActiveAt },
 ]
 
+const EMPTY_OPERATORS: Operator[] = []
+
 export function SettingsPage() {
-  const loading = useSimulatedLoading()
-  const [workspace, setWorkspace] = useState(mockWorkspaceSettings)
-  const [operators, setOperators] = useState(mockOperators)
+  const fetchWorkspace = useCallback(() => getWorkspace(), [])
+  const fetchOperators = useCallback(
+    () => listOperators({ limit: 100, sort: 'invited', sort_dir: 'desc' }),
+    [],
+  )
+
+  const workspaceQuery = useApiQuery(['settings', 'workspace'], fetchWorkspace)
+  const operatorsQuery = useApiQuery(['settings', 'operators'], fetchOperators)
+
+  const [workspaceSaved, setWorkspaceSaved] = useState<Workspace | null>(null)
+  const [workspaceDraft, setWorkspaceDraft] = useState<Workspace | null>(null)
   const [sort, setSort] = useState<TableSortState>(null)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<OperatorRole>('operator')
+  const [inviteRole, setInviteRole] = useState<InviteOperatorRole>('operator')
   const [inviteError, setInviteError] = useState<string | null>(null)
-  const [savedFlash, setSavedFlash] = useState(false)
+  const [inviteBusy, setInviteBusy] = useState(false)
+  const [saveBusy, setSaveBusy] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [actingId, setActingId] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!workspaceQuery.data) return
+    setWorkspaceSaved(workspaceQuery.data)
+    setWorkspaceDraft(workspaceQuery.data)
+  }, [workspaceQuery.data])
+
+  const operators = operatorsQuery.data?.items ?? EMPTY_OPERATORS
   const visibleOperators = useMemo(
     () => applyTableSort(operators, OPERATOR_SORT_COLUMNS, sort),
     [operators, sort],
   )
 
-  function patchWorkspace(patch: Partial<WorkspaceSettings>) {
-    setWorkspace((prev) => ({ ...prev, ...patch }))
-    setSavedFlash(true)
-    window.setTimeout(() => setSavedFlash(false), 1600)
+  const workspaceDirty = useMemo(() => {
+    if (!workspaceSaved || !workspaceDraft) return false
+    return (
+      workspaceSaved.orgName !== workspaceDraft.orgName ||
+      workspaceSaved.defaultApprovalTtlSeconds !==
+        workspaceDraft.defaultApprovalTtlSeconds ||
+      workspaceSaved.specialistFailClosed !==
+        workspaceDraft.specialistFailClosed ||
+      workspaceSaved.auditRetentionDays !== workspaceDraft.auditRetentionDays
+    )
+  }, [workspaceSaved, workspaceDraft])
+
+  function updateOrgName(value: string) {
+    setWorkspaceDraft((prev) => (prev ? { ...prev, orgName: value } : prev))
   }
 
-  function onInvite(e: FormEvent) {
+  function updateWorkspaceField<K extends keyof WorkspacePatch>(
+    key: K,
+    value: NonNullable<WorkspacePatch[K]>,
+  ) {
+    setWorkspaceDraft((prev) =>
+      prev ? { ...prev, [key]: value } : prev,
+    )
+  }
+
+  function cancelWorkspace() {
+    if (!workspaceSaved) return
+    setWorkspaceDraft(workspaceSaved)
+    setSaveError(null)
+  }
+
+  async function saveWorkspaceChanges() {
+    if (!workspaceDraft || !workspaceSaved) return
+    const trimmed = workspaceDraft.orgName.trim()
+    if (!trimmed) {
+      setSaveError('Organization name is required.')
+      return
+    }
+
+    const patch: WorkspacePatch = {}
+    if (trimmed !== workspaceSaved.orgName) patch.orgName = trimmed
+    if (
+      workspaceDraft.defaultApprovalTtlSeconds !==
+      workspaceSaved.defaultApprovalTtlSeconds
+    ) {
+      patch.defaultApprovalTtlSeconds =
+        workspaceDraft.defaultApprovalTtlSeconds
+    }
+    if (
+      workspaceDraft.specialistFailClosed !==
+      workspaceSaved.specialistFailClosed
+    ) {
+      patch.specialistFailClosed = workspaceDraft.specialistFailClosed
+    }
+    if (
+      workspaceDraft.auditRetentionDays !== workspaceSaved.auditRetentionDays
+    ) {
+      patch.auditRetentionDays = workspaceDraft.auditRetentionDays
+    }
+
+    setSaveBusy(true)
+    setSaveError(null)
+    try {
+      const next = await patchWorkspace(patch)
+      setWorkspaceSaved(next)
+      setWorkspaceDraft(next)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSaveBusy(false)
+    }
+  }
+
+  async function onInvite(e: FormEvent) {
     e.preventDefault()
     setInviteError(null)
     const email = inviteEmail.trim().toLowerCase()
@@ -87,32 +187,62 @@ export function SettingsPage() {
       setInviteError('Email is required.')
       return
     }
-    if (operators.some((op) => op.email.toLowerCase() === email)) {
-      setInviteError('That operator is already on the workspace.')
-      return
-    }
 
-    const next: Operator = {
-      id: createOperatorId(),
-      email,
-      name: email.split('@')[0] || email,
-      role: inviteRole,
-      status: 'invited',
-      invitedAt: new Date().toISOString(),
-      lastActiveAt: null,
+    setInviteBusy(true)
+    try {
+      await inviteOperator({ email, role: inviteRole })
+      setInviteEmail('')
+      setInviteRole('operator')
+      operatorsQuery.refetch()
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setInviteBusy(false)
     }
-    setOperators((prev) => [next, ...prev])
-    setInviteEmail('')
-    setInviteRole('operator')
   }
 
-  function setOperatorStatus(id: string, status: Operator['status']) {
-    setOperators((prev) =>
-      prev.map((op) => (op.id === id ? { ...op, status } : op)),
+  async function runOperatorAction(
+    id: string,
+    action: () => Promise<unknown>,
+  ) {
+    setActingId(id)
+    setActionError(null)
+    try {
+      await action()
+      operatorsQuery.refetch()
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setActingId(null)
+    }
+  }
+
+  if (workspaceQuery.loading || operatorsQuery.loading) {
+    return <SettingsSkeleton />
+  }
+
+  if (workspaceQuery.error || !workspaceDraft) {
+    return (
+      <EmptyState
+        title="Couldn’t load settings"
+        description={
+          workspaceQuery.error?.message ?? 'No workspace settings returned.'
+        }
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={workspaceQuery.refetch}
+          >
+            Retry
+          </Button>
+        }
+      />
     )
   }
 
-  if (loading) return <SettingsSkeleton />
+  const workspace = workspaceDraft
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -124,10 +254,39 @@ export function SettingsPage() {
             live under Agents → Credentials.
           </p>
         </div>
-        {savedFlash ? (
-          <span className="text-primary shrink-0 text-[11px]">Saved</span>
+        {workspaceDirty ? (
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={saveBusy}
+              onClick={cancelWorkspace}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={saveBusy}
+              onClick={() => void saveWorkspaceChanges()}
+            >
+              {saveBusy ? 'Saving…' : 'Save changes'}
+            </Button>
+          </div>
         ) : null}
       </div>
+
+      {saveError || actionError || operatorsQuery.error ? (
+        <div className="border-border border-b px-4 py-2">
+          <p className="text-destructive text-xs">
+            {saveError ??
+              actionError ??
+              operatorsQuery.error?.message ??
+              'Something went wrong'}
+          </p>
+        </div>
+      ) : null}
 
       <div className="border-border grid border-b lg:grid-cols-2">
         <Panel>
@@ -144,7 +303,7 @@ export function SettingsPage() {
               <Input
                 id="org-name"
                 value={workspace.orgName}
-                onChange={(e) => patchWorkspace({ orgName: e.target.value })}
+                onChange={(e) => updateOrgName(e.target.value)}
               />
             </Field>
 
@@ -178,9 +337,10 @@ export function SettingsPage() {
                   label: o.label,
                 }))}
                 onChange={(value) =>
-                  patchWorkspace({
-                    defaultApprovalTtlSeconds: Number(value),
-                  })
+                  updateWorkspaceField(
+                    'defaultApprovalTtlSeconds',
+                    Number(value) as Workspace['defaultApprovalTtlSeconds'],
+                  )
                 }
               />
             </Field>
@@ -197,7 +357,7 @@ export function SettingsPage() {
                   { value: 'off', label: 'Off' },
                 ]}
                 onChange={(value) =>
-                  patchWorkspace({ specialistFailClosed: value === 'on' })
+                  updateWorkspaceField('specialistFailClosed', value === 'on')
                 }
               />
             </Field>
@@ -214,7 +374,10 @@ export function SettingsPage() {
                   label: `${days}d`,
                 }))}
                 onChange={(value) =>
-                  patchWorkspace({ auditRetentionDays: Number(value) })
+                  updateWorkspaceField(
+                    'auditRetentionDays',
+                    Number(value) as Workspace['auditRetentionDays'],
+                  )
                 }
               />
             </Field>
@@ -234,7 +397,7 @@ export function SettingsPage() {
         />
 
         <form
-          onSubmit={onInvite}
+          onSubmit={(e) => void onInvite(e)}
           className="border-border flex flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-end"
         >
           <Field id="invite-email" label="Email" className="min-w-0 flex-1">
@@ -252,16 +415,18 @@ export function SettingsPage() {
             <Select
               id="invite-role"
               value={inviteRole}
-              onValueChange={(next) => setInviteRole(next as OperatorRole)}
+              onValueChange={(next) =>
+                setInviteRole(next as InviteOperatorRole)
+              }
               options={INVITE_ROLES.map((role) => ({
                 value: role,
                 label: role.charAt(0).toUpperCase() + role.slice(1),
               }))}
             />
           </Field>
-          <Button type="submit" className="sm:mb-0">
+          <Button type="submit" className="sm:mb-0" disabled={inviteBusy}>
             <RiMailSendLine className="size-3.5" />
-            Send invite
+            {inviteBusy ? 'Sending…' : 'Send invite'}
           </Button>
         </form>
 
@@ -340,21 +505,22 @@ export function SettingsPage() {
                     <TableCell>
                       <OperatorActions
                         operator={op}
-                        onDisable={() => setOperatorStatus(op.id, 'disabled')}
-                        onEnable={() => setOperatorStatus(op.id, 'active')}
-                        onResend={() => {
-                          setOperators((prev) =>
-                            prev.map((row) =>
-                              row.id === op.id
-                                ? {
-                                    ...row,
-                                    status: 'invited',
-                                    invitedAt: new Date().toISOString(),
-                                  }
-                                : row,
-                            ),
+                        busy={actingId === op.id}
+                        onDisable={() =>
+                          void runOperatorAction(op.id, () =>
+                            disableOperator(op.id),
                           )
-                        }}
+                        }
+                        onEnable={() =>
+                          void runOperatorAction(op.id, () =>
+                            enableOperator(op.id),
+                          )
+                        }
+                        onResend={() =>
+                          void runOperatorAction(op.id, () =>
+                            resendOperatorInvite(op.id),
+                          )
+                        }
                       />
                     </TableCell>
                   </TableRow>
@@ -370,11 +536,13 @@ export function SettingsPage() {
 
 function OperatorActions({
   operator,
+  busy,
   onDisable,
   onEnable,
   onResend,
 }: {
   operator: Operator
+  busy: boolean
   onDisable: () => void
   onEnable: () => void
   onResend: () => void
@@ -387,23 +555,41 @@ function OperatorActions({
 
   if (operator.status === 'invited') {
     return (
-      <Button type="button" variant="ghost" size="xs" onClick={onResend}>
-        Resend
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        disabled={busy}
+        onClick={onResend}
+      >
+        {busy ? '…' : 'Resend'}
       </Button>
     )
   }
 
   if (operator.status === 'disabled') {
     return (
-      <Button type="button" variant="ghost" size="xs" onClick={onEnable}>
-        Enable
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        disabled={busy}
+        onClick={onEnable}
+      >
+        {busy ? '…' : 'Enable'}
       </Button>
     )
   }
 
   return (
-    <Button type="button" variant="ghost" size="xs" onClick={onDisable}>
-      Disable
+    <Button
+      type="button"
+      variant="ghost"
+      size="xs"
+      disabled={busy}
+      onClick={onDisable}
+    >
+      {busy ? '…' : 'Disable'}
     </Button>
   )
 }

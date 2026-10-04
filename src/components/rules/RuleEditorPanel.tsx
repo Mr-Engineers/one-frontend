@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import type { RulesMeta } from '@/api'
 import { ConditionBuilder } from '@/components/rules/ConditionBuilder'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,12 +11,12 @@ import {
   createRuleId,
   emptyConditionGroup,
   isConditionGroup,
-  mcpServerForTool,
-  toolGroupsForAgent,
   type ConditionGroup,
   type PolicyRule,
   type RuleOutcome,
 } from '@/mocks'
+
+export type RuleToolGroup = RulesMeta['tools'][number]
 
 function validateWhen(when: ConditionGroup): boolean {
   function walk(node: ConditionGroup): boolean {
@@ -30,31 +31,41 @@ function validateWhen(when: ConditionGroup): boolean {
   return walk(when)
 }
 
+function serverForTool(
+  groups: RuleToolGroup[],
+  tool: string,
+): RuleToolGroup | undefined {
+  return groups.find((g) => g.tools.includes(tool))
+}
+
 export function RuleEditorPanel({
   agentId,
+  toolGroups,
   initial,
   defaultMcpId,
   onSave,
   onCancel,
 }: {
   agentId: string
+  /** Attached MCP tool catalog from GET /agents/{id}/rules/meta. */
+  toolGroups: RuleToolGroup[]
   initial?: PolicyRule | null
   /** Prefer this MCP when creating a rule (e.g. active filter). */
   defaultMcpId?: string | null
   onSave: (rule: PolicyRule) => void
   onCancel: () => void
 }) {
-  const groups = toolGroupsForAgent(agentId)
+  const groups = toolGroups
 
   const initialMcpId =
-    (initial?.tool ? mcpServerForTool(initial.tool)?.id : undefined) ??
+    (initial?.tool ? serverForTool(groups, initial.tool)?.serverId : undefined) ??
     defaultMcpId ??
-    groups[0]?.server.id ??
+    groups[0]?.serverId ??
     ''
 
   const initialTool =
     initial?.tool ??
-    groups.find((g) => g.server.id === initialMcpId)?.tools[0] ??
+    groups.find((g) => g.serverId === initialMcpId)?.tools[0] ??
     groups[0]?.tools[0] ??
     ''
 
@@ -66,13 +77,13 @@ export function RuleEditorPanel({
     initial?.when ?? emptyConditionGroup('and'),
   )
 
-  const tools = groups.find((g) => g.server.id === mcpId)?.tools ?? []
+  const tools = groups.find((g) => g.serverId === mcpId)?.tools ?? []
   const canSave = name.trim().length > 0 && Boolean(tool) && validateWhen(when)
 
   function handleMcpChange(nextMcpId: string) {
     setMcpId(nextMcpId)
     const nextTools =
-      groups.find((g) => g.server.id === nextMcpId)?.tools ?? []
+      groups.find((g) => g.serverId === nextMcpId)?.tools ?? []
     const nextTool = nextTools.includes(tool) ? tool : (nextTools[0] ?? '')
     setTool(nextTool)
   }
@@ -122,9 +133,9 @@ export function RuleEditorPanel({
             id="rule-mcp"
             value={mcpId}
             onValueChange={handleMcpChange}
-            options={groups.map(({ server }) => ({
-              value: server.id,
-              label: server.name,
+            options={groups.map((server) => ({
+              value: server.serverId,
+              label: server.serverName,
             }))}
           />
         </div>

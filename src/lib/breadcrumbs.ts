@@ -14,7 +14,6 @@ const EXTRA_PAGES: { path: string; label: string; parent?: BreadcrumbCrumb }[] =
       label: 'Agents',
       // listed in nav — handled below; keep for detail parent clarity if needed
     },
-    { path: routes.roles, label: 'Role template', parent: { label: 'Agents', href: routes.agents } },
     {
       path: routes.specialists,
       label: 'Specialist',

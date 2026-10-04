@@ -516,100 +516,102 @@ function CreateWebhookPanel({
         </Button>
       </header>
 
-      <form
-        onSubmit={onSubmit}
-        className="mx-auto flex w-full max-w-xl min-h-0 flex-1 flex-col gap-5 overflow-y-auto px-3 py-5 sm:px-4 sm:py-6"
-      >
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="wh-name">Name</Label>
-          <Input
-            id="wh-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="PagerDuty incidents"
-            autoFocus
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="wh-url">Endpoint URL</Label>
-          <Input
-            id="wh-url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://hooks.example.com/modus"
-            className="font-mono"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="wh-desc">Description</Label>
-          <Input
-            id="wh-desc"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Optional — who gets paged and why"
-          />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div>
-            <p className="text-xs font-medium">Events</p>
-            <p className="text-muted-foreground mt-0.5 text-xs">
-              Choose which incidents should notify this endpoint.
-            </p>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <form
+          onSubmit={onSubmit}
+          className="mx-auto flex w-full max-w-xl flex-col gap-5 px-3 py-5 sm:px-4 sm:py-6"
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="wh-name">Name</Label>
+            <Input
+              id="wh-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="PagerDuty incidents"
+              autoFocus
+            />
           </div>
-          <ul className="border-border divide-border flex flex-col divide-y border">
-            {WEBHOOK_EVENTS.map((event) => {
-              const on = events.includes(event.id)
-              return (
-                <li key={event.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggle(event.id)}
-                    className="hover:bg-muted/40 flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors"
-                  >
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'mt-0.5 flex size-3.5 shrink-0 items-center justify-center rounded-sm border',
-                        on
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-background',
-                      )}
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="wh-url">Endpoint URL</Label>
+            <Input
+              id="wh-url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://hooks.example.com/modus"
+              className="font-mono"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="wh-desc">Description</Label>
+            <Input
+              id="wh-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Optional — who gets paged and why"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div>
+              <p className="text-xs font-medium">Events</p>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                Choose which incidents should notify this endpoint.
+              </p>
+            </div>
+            <ul className="border-border divide-border flex flex-col divide-y border">
+              {WEBHOOK_EVENTS.map((event) => {
+                const on = events.includes(event.id)
+                return (
+                  <li key={event.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggle(event.id)}
+                      className="hover:bg-muted/40 flex w-full items-start gap-3 px-3 py-2.5 text-left transition-colors"
                     >
-                      {on ? (
-                        <span className="block size-1.5 rounded-[1px] bg-current" />
-                      ) : null}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="text-[13px] font-medium">
-                        {event.label}
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'mt-0.5 flex size-3.5 shrink-0 items-center justify-center rounded-sm border',
+                          on
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-border bg-background',
+                        )}
+                      >
+                        {on ? (
+                          <span className="block size-1.5 rounded-[1px] bg-current" />
+                        ) : null}
                       </span>
-                      <span className="text-muted-foreground mt-0.5 block text-xs">
-                        {event.description}
+                      <span className="min-w-0">
+                        <span className="text-[13px] font-medium">
+                          {event.label}
+                        </span>
+                        <span className="text-muted-foreground mt-0.5 block text-xs">
+                          {event.description}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
 
-        {error ? (
-          <p className="text-destructive text-xs" role="alert">
-            {error}
-          </p>
-        ) : null}
+          {error ? (
+            <p className="text-destructive text-xs" role="alert">
+              {error}
+            </p>
+          ) : null}
 
-        <div className="mt-auto flex items-center justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" onClick={handleClose}>
-            Cancel
-          </Button>
-          <Button type="submit">Create webhook</Button>
-        </div>
-      </form>
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button type="submit">Create webhook</Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

@@ -37,6 +37,10 @@ export default function App() {
             element={<AgentsPage />}
           />
           <Route path={routes.mcp} element={<McpRegistryPage />} />
+          <Route
+            path={`${routes.mcp}/:serverId`}
+            element={<McpRegistryPage />}
+          />
           <Route path={routes.audit} element={<AuditPage />} />
           <Route path={`${routes.audit}/:eventId`} element={<AuditPage />} />
           <Route path={routes.webhooks} element={<WebhooksPage />} />

@@ -48,3 +48,18 @@ export function unwrap<T>(result: ClientResult<T>, message: string): T {
   }
   return data
 }
+
+/** For 204 / empty bodies — only checks `response.ok`. */
+export function unwrapOk(
+  result: ClientResult<unknown>,
+  message: string,
+): void {
+  const { error, response } = result
+  if (error || !response.ok) {
+    throw new ApiError(
+      `${message} (${response.status})${formatDetail(error)}`,
+      response.status,
+      error,
+    )
+  }
+}

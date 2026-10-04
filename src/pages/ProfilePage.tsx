@@ -1,6 +1,8 @@
+import { useCallback } from 'react'
 import { RiLogoutBoxRLine } from '@remixicon/react'
 import { Link } from 'react-router-dom'
 
+import { getMe } from '@/api'
 import { useAuth } from '@/auth/AuthProvider'
 import {
   DetailSection,
@@ -8,17 +10,15 @@ import {
   formatTimestamp,
 } from '@/components/list/DetailMeta'
 import { EmptyState } from '@/components/list/EmptyState'
+import { SettingsSkeleton } from '@/components/list/ListSkeletons'
 import {
   OperatorRoleBadge,
   OperatorStatusBadge,
 } from '@/components/status/StatusBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { useApiQuery } from '@/hooks/useApiQuery'
 import { routes } from '@/lib/routes'
-import {
-  findOperatorByEmail,
-  mockWorkspaceSettings,
-} from '@/mocks'
 
 function initialsFrom(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -27,41 +27,10 @@ function initialsFrom(name: string) {
   return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase()
 }
 
-function displayNameFromUser(user: {
-  email?: string | null
-  user_metadata?: Record<string, unknown>
-}) {
-  const meta = user.user_metadata ?? {}
-  if (typeof meta.full_name === 'string' && meta.full_name.trim()) {
-    return meta.full_name.trim()
-  }
-  if (typeof meta.name === 'string' && meta.name.trim()) {
-    return meta.name.trim()
-  }
-  return user.email?.split('@')[0] || 'Operator'
-}
-
-function avatarUrlFromUser(user: { user_metadata?: Record<string, unknown> }) {
-  const meta = user.user_metadata ?? {}
-  if (typeof meta.avatar_url === 'string') return meta.avatar_url
-  if (typeof meta.picture === 'string') return meta.picture
-  return undefined
-}
-
-function authProviderLabel(user: {
-  app_metadata?: Record<string, unknown>
-}) {
-  const provider = user.app_metadata?.provider
-  if (typeof provider === 'string' && provider.trim()) {
-    if (provider === 'email') return 'Email'
-    return provider.charAt(0).toUpperCase() + provider.slice(1)
-  }
-  return 'Email'
-}
-
-function formatExpiresAt(expiresAt: number | undefined) {
-  if (!expiresAt) return '—'
-  return formatTimestamp(new Date(expiresAt * 1000).toISOString())
+function authProviderLabel(provider: string) {
+  if (provider === 'email') return 'Email'
+  if (!provider.trim()) return 'Email'
+  return provider.charAt(0).toUpperCase() + provider.slice(1)
 }
 
 function authModeLabel(mode: string) {
@@ -70,7 +39,9 @@ function authModeLabel(mode: string) {
 }
 
 export function ProfilePage() {
-  const { user, session, signOut } = useAuth()
+  const { user, signOut } = useAuth()
+  const fetchMe = useCallback(() => getMe(), [])
+  const profileQuery = useApiQuery(['me'], fetchMe, { enabled: Boolean(user) })
 
   if (!user) {
     return (
@@ -81,11 +52,31 @@ export function ProfilePage() {
     )
   }
 
-  const email = user.email ?? ''
-  const name = displayNameFromUser(user)
-  const avatarUrl = avatarUrlFromUser(user)
-  const operator = findOperatorByEmail(email)
-  const workspace = mockWorkspaceSettings
+  if (profileQuery.loading) return <SettingsSkeleton />
+
+  if (profileQuery.error || !profileQuery.data) {
+    return (
+      <EmptyState
+        title="Couldn’t load profile"
+        description={profileQuery.error?.message ?? 'No profile returned.'}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={profileQuery.refetch}
+          >
+            Retry
+          </Button>
+        }
+      />
+    )
+  }
+
+  const profile = profileQuery.data
+  const operator = profile.operator
+  const name = profile.name || profile.email.split('@')[0] || 'Operator'
+  const avatarUrl = profile.avatarUrl ?? undefined
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -123,7 +114,7 @@ export function ProfilePage() {
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{name}</p>
           <p className="text-muted-foreground truncate text-xs">
-            {email || '—'}
+            {profile.email || '—'}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {operator ? (
@@ -148,11 +139,11 @@ export function ProfilePage() {
                 { label: 'Name', value: name },
                 {
                   label: 'Email',
-                  value: email || '—',
+                  value: profile.email || '—',
                 },
                 {
                   label: 'Sign-in method',
-                  value: authProviderLabel(user),
+                  value: authProviderLabel(profile.authProvider),
                 },
               ]}
             />
@@ -165,17 +156,19 @@ export function ProfilePage() {
               items={[
                 {
                   label: 'Signed in',
-                  value: user.last_sign_in_at
-                    ? formatTimestamp(user.last_sign_in_at)
+                  value: profile.lastSignInAt
+                    ? formatTimestamp(profile.lastSignInAt)
                     : '—',
                 },
                 {
                   label: 'Session ends',
-                  value: formatExpiresAt(session?.expires_at),
+                  value: profile.sessionExpiresAt
+                    ? formatTimestamp(profile.sessionExpiresAt)
+                    : '—',
                 },
                 {
                   label: 'Access',
-                  value: authModeLabel(workspace.authMode),
+                  value: authModeLabel(profile.workspace.authMode),
                 },
               ]}
             />
@@ -189,7 +182,7 @@ export function ProfilePage() {
             items={[
               {
                 label: 'Organization',
-                value: workspace.orgName,
+                value: profile.workspace.orgName,
               },
               {
                 label: 'Role',
@@ -214,7 +207,8 @@ export function ProfilePage() {
         ) : (
           <p className="text-muted-foreground text-xs leading-relaxed">
             You are signed in, but this email is not on the workspace roster
-            for {workspace.orgName}. Ask an admin to invite you in Settings.
+            for {profile.workspace.orgName}. Ask an admin to invite you in
+            Settings.
           </p>
         )}
       </DetailSection>

@@ -7,9 +7,16 @@ import {
 
 import { McpHealthBadge } from '@/components/status/StatusBadge'
 import { Button } from '@/components/ui/button'
-import type { Agent, McpServer } from '@/mocks'
 
 type AuthPhase = 'prompt' | 'redirect' | 'done'
+
+type AttachAgent = { name: string }
+type AttachServer = {
+  id: string
+  name: string
+  url: string
+  health: 'healthy' | 'degraded' | 'down' | 'pending'
+}
 
 export function AttachMcpAuthFlow({
   open,
@@ -19,8 +26,8 @@ export function AttachMcpAuthFlow({
   onAttached,
 }: {
   open: boolean
-  agent: Agent
-  server: McpServer | null
+  agent: AttachAgent
+  server: AttachServer | null
   onClose: () => void
   onAttached: (serverId: string) => void
 }) {

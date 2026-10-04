@@ -1,28 +1,36 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import {
+  getOverview,
+  type CallsBucket,
+  type Overview,
+} from '@/api'
 import { EmptyState } from '@/components/list/EmptyState'
 import { OverviewSkeleton } from '@/components/list/ListSkeletons'
 import { AgentBadge, StatusBadge } from '@/components/status/StatusBadge'
-import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
+import { Button } from '@/components/ui/button'
+import { useApiQuery } from '@/hooks/useApiQuery'
 import { routes } from '@/lib/routes'
 import { cn } from '@/lib/utils'
-import {
-  getOverviewMetrics,
-  type CallsBucket,
-  type DecisionStatus,
-} from '@/mocks'
 
 const CALLS_CHART_HEIGHT_PX = 160
 
 const decisionBarClass: Record<
-  Exclude<DecisionStatus, 'pending'>,
+  Overview['decisionSplit'][number]['decision'],
   string
 > = {
   allow: 'bg-[var(--themed-badge-green-text)]',
   caution: 'bg-[var(--themed-badge-yellow-text)]',
   deny: 'bg-[var(--themed-badge-red-text)]',
   rate_limited: 'bg-[var(--themed-badge-purple-text)]',
+}
+
+const BUCKET_LABEL: Record<Overview['window']['bucket'], string> = {
+  '5m': '5-minute buckets',
+  '15m': '15-minute buckets',
+  '1h': 'hourly buckets',
+  '1d': 'daily buckets',
 }
 
 function formatPct(value: number) {
@@ -33,6 +41,24 @@ function remainingLabel(used: number, cap: number) {
   const left = Math.max(cap - used, 0)
   const pct = Math.round((used / cap) * 100)
   return { left, pct, ratio: Math.min(used / cap, 1) }
+}
+
+function formatBucketLabel(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone,
+  }).format(new Date(iso))
+}
+
+function isHourTick(iso: string, timeZone: string): boolean {
+  const parts = new Intl.DateTimeFormat(undefined, {
+    minute: '2-digit',
+    hour12: false,
+    timeZone,
+  }).formatToParts(new Date(iso))
+  return parts.find((p) => p.type === 'minute')?.value === '00'
 }
 
 function Panel({
@@ -71,16 +97,34 @@ function PanelHead({
   )
 }
 
-function CallsOverTimeChart({ series }: { series: CallsBucket[] }) {
+function CallsOverTimeChart({
+  series,
+  timeZone,
+}: {
+  series: CallsBucket[]
+  timeZone: string
+}) {
   const [hover, setHover] = useState<CallsBucket | null>(null)
   const maxCalls = Math.max(...series.map((b) => b.count), 1)
+
+  if (series.length === 0) {
+    return (
+      <div className="px-4 py-4">
+        <EmptyState
+          compact
+          title="No call activity"
+          description="Volume over time appears once agents start making requests."
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="px-4 py-4">
       <div className="mb-2 flex h-4 items-center justify-between gap-3">
         <span className="text-muted-foreground font-mono text-[11px]">
           {hover
-            ? `${hover.label} · ${hover.count.toLocaleString()} calls`
+            ? `${formatBucketLabel(hover.start, timeZone)} · ${hover.count.toLocaleString()} calls`
             : 'Hover a bar for exact count'}
         </span>
         {hover ? (
@@ -100,12 +144,13 @@ function CallsOverTimeChart({ series }: { series: CallsBucket[] }) {
             Math.round((bucket.count / maxCalls) * CALLS_CHART_HEIGHT_PX),
             bucket.count > 0 ? 2 : 0,
           )
-          const active = hover?.label === bucket.label
+          const active = hover?.start === bucket.start
+          const label = formatBucketLabel(bucket.start, timeZone)
           return (
             <button
-              key={bucket.label}
+              key={bucket.start}
               type="button"
-              aria-label={`${bucket.label}: ${bucket.count} calls`}
+              aria-label={`${label}: ${bucket.count} calls`}
               className={cn(
                 'relative min-w-0 flex-1 rounded-none border-0 p-0 transition-colors',
                 active ? 'bg-primary' : 'bg-primary/70 hover:bg-primary',
@@ -121,15 +166,15 @@ function CallsOverTimeChart({ series }: { series: CallsBucket[] }) {
 
       <div className="mt-2 flex">
         {series.map((bucket) => {
-          const hourTick = bucket.label.endsWith(':00')
+          const hourTick = isHourTick(bucket.start, timeZone)
           return (
             <div
-              key={`tick-${bucket.label}`}
+              key={`tick-${bucket.start}`}
               className="min-w-0 flex-1 text-center"
             >
               {hourTick ? (
                 <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
-                  {bucket.label.slice(0, 2)}
+                  {formatBucketLabel(bucket.start, timeZone).slice(0, 2)}
                 </span>
               ) : null}
             </div>
@@ -141,28 +186,60 @@ function CallsOverTimeChart({ series }: { series: CallsBucket[] }) {
 }
 
 export function OverviewPage() {
-  const loading = useSimulatedLoading()
-  const m = getOverviewMetrics()
-  const decisionTotal = m.decisionSplit.reduce((sum, d) => sum + d.count, 0) || 1
+  const fetchOverview = useCallback(
+    () => getOverview({ range: 'today' }),
+    [],
+  )
+  const overviewQuery = useApiQuery(['overview', 'today'], fetchOverview)
 
-  if (loading) return <OverviewSkeleton />
+  const m = overviewQuery.data
+  const decisionTotal = useMemo(
+    () => m?.decisionSplit.reduce((sum, d) => sum + d.count, 0) || 1,
+    [m?.decisionSplit],
+  )
+
+  if (overviewQuery.loading) return <OverviewSkeleton />
+
+  if (overviewQuery.error || !m) {
+    return (
+      <EmptyState
+        title="Couldn’t load overview"
+        description={overviewQuery.error?.message ?? 'No overview data returned.'}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={overviewQuery.refetch}
+          >
+            Retry
+          </Button>
+        }
+      />
+    )
+  }
+
+  const compareHint =
+    m.callsDeltaPct == null
+      ? m.window.compareLabel
+      : (
+          <span
+            className={cn(
+              m.callsDeltaPct >= 0 ? 'text-primary' : 'text-destructive',
+            )}
+          >
+            {m.callsDeltaPct >= 0 ? '+' : ''}
+            {m.callsDeltaPct}% {m.window.compareLabel}
+          </span>
+        )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="border-border grid grid-cols-2 border-b xl:grid-cols-4">
         <MetricCell
           label="Calls today"
-          value={m.callsToday.toLocaleString()}
-          hint={
-            <span
-              className={cn(
-                m.callsDeltaPct >= 0 ? 'text-primary' : 'text-destructive',
-              )}
-            >
-              {m.callsDeltaPct >= 0 ? '+' : ''}
-              {m.callsDeltaPct}% vs yesterday
-            </span>
-          }
+          value={m.calls.toLocaleString()}
+          hint={compareHint}
         />
         <MetricCell
           label="Waiting approvals"
@@ -181,8 +258,8 @@ export function OverviewPage() {
           value={formatPct(m.denyRatePct)}
           hint={
             <span>
-              {formatPct(m.cautionRatePct)} caution · {m.rateLimitedToday}{' '}
-              rate limited
+              {formatPct(m.cautionRatePct)} caution · {m.rateLimited} rate
+              limited
             </span>
           }
         />
@@ -204,9 +281,12 @@ export function OverviewPage() {
       <Panel className="border-r-0">
         <PanelHead
           title="Calls over time"
-          description="Activity today · 5-minute buckets"
+          description={`Activity · ${BUCKET_LABEL[m.window.bucket]}`}
         />
-        <CallsOverTimeChart series={m.callsOverTime} />
+        <CallsOverTimeChart
+          series={m.callsOverTime}
+          timeZone={m.window.timezone}
+        />
       </Panel>
 
       <div className="grid lg:grid-cols-3">
@@ -226,32 +306,46 @@ export function OverviewPage() {
             }
           />
           <div className="flex flex-col gap-3 px-4 py-4">
-            <div className="bg-muted flex h-2 overflow-hidden">
-              {m.decisionSplit.map((row) =>
-                row.count === 0 ? null : (
-                  <div
-                    key={row.decision}
-                    className={cn(decisionBarClass[row.decision])}
-                    style={{ width: `${(row.count / decisionTotal) * 100}%` }}
-                    title={`${row.decision}: ${row.count}`}
-                  />
-                ),
-              )}
-            </div>
-            <ul className="flex flex-col gap-2">
-              {m.decisionSplit.map((row) => (
-                <li
-                  key={row.decision}
-                  className="flex items-center justify-between gap-3"
-                >
-                  <StatusBadge status={row.decision} />
-                  <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                    {row.count} ·{' '}
-                    {formatPct(Math.round((row.count / decisionTotal) * 100))}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {m.decisionSplit.length === 0 ? (
+              <EmptyState
+                compact
+                title="No decisions yet"
+                description="Decision mix fills in as tools are called."
+              />
+            ) : (
+              <>
+                <div className="bg-muted flex h-2 overflow-hidden">
+                  {m.decisionSplit.map((row) =>
+                    row.count === 0 ? null : (
+                      <div
+                        key={row.decision}
+                        className={cn(decisionBarClass[row.decision])}
+                        style={{
+                          width: `${(row.count / decisionTotal) * 100}%`,
+                        }}
+                        title={`${row.decision}: ${row.count}`}
+                      />
+                    ),
+                  )}
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {m.decisionSplit.map((row) => (
+                    <li
+                      key={row.decision}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <StatusBadge status={row.decision} />
+                      <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                        {row.count} ·{' '}
+                        {formatPct(
+                          Math.round((row.count / decisionTotal) * 100),
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </div>
         </Panel>
 
@@ -261,29 +355,37 @@ export function OverviewPage() {
             description="Clear allows vs caution / deny pressure"
           />
           <div className="flex flex-col gap-4 px-4 py-4">
-            {m.agentSplit.map((row) => {
-              const total = row.clear + row.caution || 1
-              return (
-                <div key={row.agentId} className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <AgentBadge agentId={row.agentId} />
-                    <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                      {row.clear} clear · {row.caution} flagged
-                    </span>
+            {m.agentSplit.length === 0 ? (
+              <EmptyState
+                compact
+                title="No agent activity"
+                description="Per-agent mix appears once calls are audited."
+              />
+            ) : (
+              m.agentSplit.map((row) => {
+                const total = row.clear + row.flagged || 1
+                return (
+                  <div key={row.agentId} className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <AgentBadge agentId={row.agentId} />
+                      <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                        {row.clear} clear · {row.flagged} flagged
+                      </span>
+                    </div>
+                    <div className="bg-muted flex h-1.5 overflow-hidden">
+                      <div
+                        className="bg-[var(--themed-badge-green-text)]"
+                        style={{ width: `${(row.clear / total) * 100}%` }}
+                      />
+                      <div
+                        className="bg-[var(--themed-badge-yellow-text)]"
+                        style={{ width: `${(row.flagged / total) * 100}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="bg-muted flex h-1.5 overflow-hidden">
-                    <div
-                      className="bg-[var(--themed-badge-green-text)]"
-                      style={{ width: `${(row.clear / total) * 100}%` }}
-                    />
-                    <div
-                      className="bg-[var(--themed-badge-yellow-text)]"
-                      style={{ width: `${(row.caution / total) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })
+            )}
           </div>
         </Panel>
 
@@ -303,37 +405,48 @@ export function OverviewPage() {
             }
           />
           <div className="flex flex-col gap-3.5 px-4 py-4">
-            {m.budgets.map((budget) => {
-              const { left, pct, ratio } = remainingLabel(budget.used, budget.cap)
-              const tight = ratio >= 0.8
-              return (
-                <div key={budget.id} className="flex flex-col gap-1.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-foreground text-sm font-medium">
-                      {budget.label}
-                    </span>
-                    <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                      {left.toLocaleString()} {budget.unit} left
+            {m.budgets.length === 0 ? (
+              <EmptyState
+                compact
+                title="No budgets"
+                description="Quota usage shows up when agents have active caps."
+              />
+            ) : (
+              m.budgets.map((budget) => {
+                const { left, pct, ratio } = remainingLabel(
+                  budget.used,
+                  budget.cap,
+                )
+                const tight = ratio >= 0.8
+                return (
+                  <div key={budget.id} className="flex flex-col gap-1.5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="text-foreground text-sm font-medium">
+                        {budget.label}
+                      </span>
+                      <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                        {left.toLocaleString()} {budget.unit} left
+                      </span>
+                    </div>
+                    <div className="bg-muted h-1 overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full transition-[width] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
+                          tight
+                            ? 'bg-[var(--themed-badge-yellow-text)]'
+                            : 'bg-primary',
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
+                      {budget.used.toLocaleString()} /{' '}
+                      {budget.cap.toLocaleString()} · {pct}%
                     </span>
                   </div>
-                  <div className="bg-muted h-1 overflow-hidden">
-                    <div
-                      className={cn(
-                        'h-full transition-[width] duration-300 ease-[cubic-bezier(0.2,0,0,1)]',
-                        tight
-                          ? 'bg-[var(--themed-badge-yellow-text)]'
-                          : 'bg-primary',
-                      )}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
-                    {budget.used.toLocaleString()} / {budget.cap.toLocaleString()} ·{' '}
-                    {pct}%
-                  </span>
-                </div>
-              )
-            })}
+                )
+              })
+            )}
           </div>
         </Panel>
       </div>
@@ -341,15 +454,23 @@ export function OverviewPage() {
       <div className="grid lg:grid-cols-2">
         <RankedPanel
           title="Top agents"
-          description="Most active in recent audit window"
-          items={m.topAgents}
+          description="Most active in the selected window"
+          items={m.topAgents.map((a) => ({
+            id: a.agentId,
+            name: a.agentName,
+            count: a.count,
+          }))}
           href={routes.agents}
           linkLabel="All agents"
         />
         <RankedPanel
           title="Top tools"
           description="Highest invocation volume"
-          items={m.topTools}
+          items={m.topTools.map((t) => ({
+            id: t.tool,
+            name: t.tool,
+            count: t.count,
+          }))}
           href={routes.audit}
           linkLabel="Open audit"
           className="lg:border-r-0"
@@ -394,7 +515,7 @@ function RankedPanel({
 }: {
   title: string
   description: string
-  items: Array<{ name: string; count: number; meta?: string }>
+  items: Array<{ id: string; name: string; count: number }>
   href: string
   linkLabel: string
   className?: string
@@ -425,9 +546,14 @@ function RankedPanel({
         ) : (
           <ul className="divide-border flex flex-col divide-y">
             {items.map((item) => (
-              <li key={item.name} className="flex flex-col gap-1.5 py-2.5 first:pt-0 last:pb-0">
+              <li
+                key={item.id}
+                className="flex flex-col gap-1.5 py-2.5 first:pt-0 last:pb-0"
+              >
                 <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-mono text-[13px]">{item.name}</span>
+                  <span className="truncate font-mono text-[13px]">
+                    {item.name}
+                  </span>
                   <span className="text-muted-foreground shrink-0 font-mono text-xs tabular-nums">
                     {item.count}
                   </span>

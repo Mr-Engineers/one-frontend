@@ -188,7 +188,8 @@ export function formatProb(value: number): string {
   return `${Math.round(value * 100)}%`
 }
 
-export function formatTimestamp(iso: string): string {
+export function formatTimestamp(iso: string | null | undefined): string {
+  if (iso == null || iso === '') return 'Never'
   try {
     return new Date(iso).toLocaleString(undefined, {
       month: 'short',

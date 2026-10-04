@@ -1708,7 +1708,7 @@
           {
             "name": "kind",
             "in": "query",
-            "description": "`hosted` zawsze zwraca pustą listę.",
+            "description": "Filtr rodzaju serwera.",
             "schema": {
               "type": "string",
               "enum": [
@@ -1840,9 +1840,34 @@
         "tags": [
           "MCP"
         ],
-        "summary": "Dodaj hosted adapter (poza MVP)",
+        "summary": "Dodaj hosted adapter",
         "operationId": "createHostedServer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostedCreateBody"
+              }
+            }
+          }
+        },
         "responses": {
+          "201": {
+            "$ref": "#/components/responses/Server"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "501": {
             "$ref": "#/components/responses/NotImplemented"
           }
@@ -1854,9 +1879,38 @@
         "tags": [
           "MCP"
         ],
-        "summary": "Discover hosted (poza MVP)",
+        "summary": "Discover hosted — mapowanie źródła na proponowane toole",
         "operationId": "discoverHostedServer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostedDiscoverBody"
+              }
+            }
+          }
+        },
         "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostedDiscoverResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "501": {
             "$ref": "#/components/responses/NotImplemented"
           }
@@ -1868,9 +1922,34 @@
         "tags": [
           "MCP"
         ],
-        "summary": "Dodaj zdalny serwer MCP (poza MVP)",
+        "summary": "Dodaj zdalny serwer MCP",
         "operationId": "createRemoteServer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteCreateBody"
+              }
+            }
+          }
+        },
         "responses": {
+          "201": {
+            "$ref": "#/components/responses/Server"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "501": {
             "$ref": "#/components/responses/NotImplemented"
           }
@@ -1882,9 +1961,38 @@
         "tags": [
           "MCP"
         ],
-        "summary": "Discover zdalnego serwera (poza MVP)",
+        "summary": "Discover zdalnego serwera MCP (initialize + tools/list)",
         "operationId": "discoverRemoteServer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoteDiscoverBody"
+              }
+            }
+          }
+        },
         "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoteDiscoverResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "501": {
             "$ref": "#/components/responses/NotImplemented"
           }
@@ -5514,7 +5622,10 @@
           },
           "kind": {
             "type": "string",
-            "const": "remote"
+            "enum": [
+              "remote",
+              "hosted"
+            ]
           },
           "protocol": {
             "type": "string",
@@ -5599,6 +5710,284 @@
           },
           "hasPolicyPack": {
             "type": "boolean"
+          }
+        }
+      },
+      "HostedSourceKind": {
+        "type": "string",
+        "enum": [
+          "rest",
+          "openapi",
+          "database",
+          "package",
+          "template"
+        ]
+      },
+      "HostedAuthMethod": {
+        "type": "string",
+        "enum": [
+          "api_key",
+          "oauth",
+          "mtls",
+          "none"
+        ]
+      },
+      "ProposedToolRisk": {
+        "type": "string",
+        "enum": [
+          "read",
+          "write",
+          "sensitive"
+        ]
+      },
+      "RemoteDiscoverBody": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "RemoteDiscoverResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "url",
+          "requiresAuth",
+          "tools",
+          "toolCount",
+          "description"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "requiresAuth": {
+            "type": "boolean"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "toolCount": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "RemoteCreateBody": {
+        "type": "object",
+        "required": [
+          "name",
+          "url"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Opcjonalna lista z discover; pusta = pełny sync."
+          }
+        }
+      },
+      "ProposedHostedTool": {
+        "type": "object",
+        "required": [
+          "name",
+          "risk",
+          "description",
+          "defaultEnabled"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "risk": {
+            "$ref": "#/components/schemas/ProposedToolRisk"
+          },
+          "description": {
+            "type": "string"
+          },
+          "defaultEnabled": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "originalDescription": {
+            "type": "string"
+          }
+        }
+      },
+      "HostedDiscoverBody": {
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/HostedSourceKind"
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auth": {
+            "$ref": "#/components/schemas/HostedAuthMethod"
+          },
+          "openApiText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Treść OpenAPI JSON (dla `openapi`)."
+          }
+        }
+      },
+      "HostedDiscoverResult": {
+        "type": "object",
+        "required": [
+          "name",
+          "source",
+          "baseUrl",
+          "slug",
+          "tools",
+          "description",
+          "requiresAuth"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/HostedSourceKind"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProposedHostedTool"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "requiresAuth": {
+            "type": "boolean"
+          },
+          "specTitle": {
+            "type": "string"
+          },
+          "specVersion": {
+            "type": "string"
+          }
+        }
+      },
+      "HostedCreateBody": {
+        "type": "object",
+        "required": [
+          "name",
+          "source",
+          "url",
+          "tools"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/HostedSourceKind"
+          },
+          "url": {
+            "type": "string"
+          },
+          "slug": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "auth": {
+            "$ref": "#/components/schemas/HostedAuthMethod"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "toolDescriptions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Opcjonalne nadpisania opisów tooli (klucz = nazwa)."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "openApiText": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -5810,7 +6199,11 @@
             "example": "email"
           },
           "lastSignInAt": {
-            "type": "null"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
           },
           "sessionExpiresAt": {
             "type": [

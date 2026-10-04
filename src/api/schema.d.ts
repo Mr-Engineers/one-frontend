@@ -637,7 +637,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Dodaj hosted adapter (poza MVP) */
+        /** Dodaj hosted adapter */
         post: operations["createHostedServer"];
         delete?: never;
         options?: never;
@@ -654,7 +654,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Discover hosted (poza MVP) */
+        /** Discover hosted — mapowanie źródła na proponowane toole */
         post: operations["discoverHostedServer"];
         delete?: never;
         options?: never;
@@ -671,7 +671,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Dodaj zdalny serwer MCP (poza MVP) */
+        /** Dodaj zdalny serwer MCP */
         post: operations["createRemoteServer"];
         delete?: never;
         options?: never;
@@ -688,7 +688,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Discover zdalnego serwera (poza MVP) */
+        /** Discover zdalnego serwera MCP (initialize + tools/list) */
         post: operations["discoverRemoteServer"];
         delete?: never;
         options?: never;
@@ -1667,8 +1667,8 @@ export interface components {
         Server: {
             id: string;
             name: string;
-            /** @constant */
-            kind: "remote";
+            /** @enum {string} */
+            kind: "remote" | "hosted";
             /** @enum {string} */
             protocol: "rest" | "mcp";
             url: string;
@@ -1692,6 +1692,78 @@ export interface components {
             description: string;
             enabled: boolean;
             hasPolicyPack: boolean;
+        };
+        /** @enum {string} */
+        HostedSourceKind: "rest" | "openapi" | "database" | "package" | "template";
+        /** @enum {string} */
+        HostedAuthMethod: "api_key" | "oauth" | "mtls" | "none";
+        /** @enum {string} */
+        ProposedToolRisk: "read" | "write" | "sensitive";
+        RemoteDiscoverBody: {
+            /** Format: uri */
+            url: string;
+            name?: string | null;
+        };
+        RemoteDiscoverResult: {
+            name: string;
+            url: string;
+            requiresAuth: boolean;
+            tools: string[];
+            toolCount: number;
+            description: string;
+        };
+        RemoteCreateBody: {
+            name: string;
+            /** Format: uri */
+            url: string;
+            /** @description Opcjonalna lista z discover; pusta = pełny sync. */
+            tools?: string[];
+        };
+        ProposedHostedTool: {
+            name: string;
+            risk: components["schemas"]["ProposedToolRisk"];
+            description: string;
+            defaultEnabled: boolean;
+            title?: string;
+            subtitle?: string;
+            group?: string;
+            method?: string;
+            path?: string;
+            operationId?: string;
+            originalDescription?: string;
+        };
+        HostedDiscoverBody: {
+            source: components["schemas"]["HostedSourceKind"];
+            name?: string | null;
+            url?: string | null;
+            auth?: components["schemas"]["HostedAuthMethod"];
+            /** @description Treść OpenAPI JSON (dla `openapi`). */
+            openApiText?: string | null;
+        };
+        HostedDiscoverResult: {
+            name: string;
+            source: components["schemas"]["HostedSourceKind"];
+            baseUrl: string;
+            slug: string;
+            tools: components["schemas"]["ProposedHostedTool"][];
+            description: string;
+            requiresAuth: boolean;
+            specTitle?: string;
+            specVersion?: string;
+        };
+        HostedCreateBody: {
+            name: string;
+            source: components["schemas"]["HostedSourceKind"];
+            url: string;
+            slug?: string | null;
+            auth?: components["schemas"]["HostedAuthMethod"];
+            tools: string[];
+            /** @description Opcjonalne nadpisania opisów tooli (klucz = nazwa). */
+            toolDescriptions?: {
+                [key: string]: string;
+            };
+            description?: string | null;
+            openApiText?: string | null;
         };
         PolicyPack: {
             appId: string;
@@ -1758,7 +1830,8 @@ export interface components {
             avatarUrl: string | null;
             /** @example email */
             authProvider: string;
-            lastSignInAt: null;
+            /** Format: date-time */
+            lastSignInAt: string | null;
             /** Format: date-time */
             sessionExpiresAt: string | null;
             /** @description Wpis z rostera; `null`, gdy użytkownika nie ma na liście operatorów. */
@@ -2921,7 +2994,7 @@ export interface operations {
     listServers: {
         parameters: {
             query?: {
-                /** @description `hosted` zawsze zwraca pustą listę. */
+                /** @description Filtr rodzaju serwera. */
                 kind?: "all" | "remote" | "hosted";
                 health?: components["schemas"]["ServerHealth"];
                 search?: components["parameters"]["Search"];
@@ -2986,8 +3059,17 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostedCreateBody"];
+            };
+        };
         responses: {
+            201: components["responses"]["Server"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             501: components["responses"]["NotImplemented"];
         };
     };
@@ -2998,8 +3080,24 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HostedDiscoverBody"];
+            };
+        };
         responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HostedDiscoverResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             501: components["responses"]["NotImplemented"];
         };
     };
@@ -3010,8 +3108,17 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoteCreateBody"];
+            };
+        };
         responses: {
+            201: components["responses"]["Server"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             501: components["responses"]["NotImplemented"];
         };
     };
@@ -3022,8 +3129,24 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RemoteDiscoverBody"];
+            };
+        };
         responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemoteDiscoverResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
             501: components["responses"]["NotImplemented"];
         };
     };

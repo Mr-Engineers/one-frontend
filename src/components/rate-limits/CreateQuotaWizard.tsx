@@ -5,12 +5,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
-import {
-  createQuotaId,
-  findAgent,
-  type QuotaWindow,
-  type RateLimitQuota,
-} from '@/mocks'
+
+type QuotaWindow = '1m' | '1h' | '1d'
+
+export type QuotaWizardInput = {
+  name: string
+  window: QuotaWindow
+  cap: number
+  burst: number
+}
 
 const WINDOW_OPTIONS: QuotaWindow[] = ['1m', '1h', '1d']
 
@@ -24,18 +27,19 @@ export function CreateQuotaWizard({
   open,
   onClose,
   onCreated,
-  agentId,
+  agentName,
 }: {
   open: boolean
   onClose: () => void
-  onCreated: (quota: RateLimitQuota) => void
-  agentId: string
+  onCreated: (input: QuotaWizardInput) => void | Promise<void>
+  agentName: string
 }) {
-  const agent = findAgent(agentId)
   const [name, setName] = useState('')
   const [window, setWindow] = useState<QuotaWindow>('1h')
   const [cap, setCap] = useState('100')
   const [burst, setBurst] = useState('10')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) {
@@ -43,6 +47,8 @@ export function CreateQuotaWizard({
       setWindow('1h')
       setCap('100')
       setBurst('10')
+      setSubmitting(false)
+      setError(null)
     }
   }, [open])
 
@@ -52,24 +58,24 @@ export function CreateQuotaWizard({
   const burstNum = Number(burst)
   const capValid = Number.isFinite(capNum) && capNum > 0
   const burstValid = Number.isFinite(burstNum) && burstNum >= 0
-  const canCreate = name.trim().length > 0 && capValid && burstValid
+  const canCreate =
+    name.trim().length > 0 && capValid && burstValid && !submitting
 
-  function create() {
+  async function create() {
     if (!canCreate) return
-    const now = new Date().toISOString()
-    onCreated({
-      id: createQuotaId(agentId, window),
-      name: name.trim(),
-      agentId,
-      agentName: agent?.name ?? agentId,
-      window,
-      cap: Math.floor(capNum),
-      used: 0,
-      unit: 'calls',
-      enabled: true,
-      burst: Math.floor(burstNum),
-      updatedAt: now,
-    })
+    setSubmitting(true)
+    setError(null)
+    try {
+      await onCreated({
+        name: name.trim(),
+        window,
+        cap: Math.floor(capNum),
+        burst: Math.floor(burstNum),
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -82,17 +88,24 @@ export function CreateQuotaWizard({
             size="icon-sm"
             aria-label="Back"
             onClick={onClose}
+            disabled={submitting}
           >
             <RiArrowLeftLine className="size-4" />
           </Button>
           <div>
             <p className="text-sm font-medium">New rate limit</p>
             <p className="text-muted-foreground font-mono text-[11px]">
-              {agent?.name ?? agentId} · window · cap
+              {agentName} · window · cap
             </p>
           </div>
         </div>
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onClose}
+          disabled={submitting}
+        >
           Cancel
         </Button>
       </header>
@@ -101,7 +114,7 @@ export function CreateQuotaWizard({
         className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-5 overflow-y-auto px-4 py-8 sm:px-6 sm:py-10"
         onSubmit={(e) => {
           e.preventDefault()
-          create()
+          void create()
         }}
       >
         <div className="flex flex-col gap-1.5">
@@ -180,12 +193,19 @@ export function CreateQuotaWizard({
           </div>
         </div>
 
+        {error ? <p className="text-destructive text-xs">{error}</p> : null}
+
         <div className="mt-2 flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onClose}
+            disabled={submitting}
+          >
             Cancel
           </Button>
           <Button type="submit" disabled={!canCreate}>
-            Create
+            {submitting ? 'Creating…' : 'Create'}
           </Button>
         </div>
       </form>

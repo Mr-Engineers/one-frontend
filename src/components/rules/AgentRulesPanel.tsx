@@ -1,14 +1,19 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useCallback, useMemo, useState } from 'react'
 import { RiArrowDownSLine, RiArrowRightSLine } from '@remixicon/react'
 
+import { getRulesMeta, type Server } from '@/api'
 import {
   CollapsibleDetails,
   JsonBlock,
 } from '@/components/list/DetailMeta'
 import { EmptyState } from '@/components/list/EmptyState'
 import { SortableTableHead } from '@/components/list/SortableTableHead'
-import { RuleEditorPanel } from '@/components/rules/RuleEditorPanel'
+import {
+  RuleEditorPanel,
+  type RuleToolGroup,
+} from '@/components/rules/RuleEditorPanel'
 import { RuleOutcomeBadge } from '@/components/rules/RuleOutcomeBadge'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -17,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useApiQuery } from '@/hooks/useApiQuery'
 import {
   applyTableSort,
   nextSortState,
@@ -26,34 +32,43 @@ import {
 import { cn } from '@/lib/utils'
 import {
   evaluateRules,
-  mcpServerForTool,
-  mockDryRunSamples,
   type DryRunSample,
   type PolicyRule,
 } from '@/mocks'
 
 type Editing = PolicyRule | 'new' | null
 
-const RULE_SORT_COLUMNS: SortColumnDef<PolicyRule>[] = [
-  { id: 'name', type: 'text', getValue: (r) => r.name },
-  {
-    id: 'mcp',
-    type: 'text',
-    getValue: (r) => mcpServerForTool(r.tool)?.name ?? '',
-  },
-  { id: 'tool', type: 'text', getValue: (r) => r.tool },
-  { id: 'then', type: 'text', getValue: (r) => r.then },
-]
+const EMPTY_GROUPS: RuleToolGroup[] = []
+const EMPTY_SAMPLES: DryRunSample[] = []
+const EMPTY_SERVERS: Server[] = []
+
+function serverForTool(
+  groups: RuleToolGroup[],
+  tool: string,
+): RuleToolGroup | undefined {
+  return groups.find((g) => g.tools.includes(tool))
+}
+
+function groupsFromServers(servers: Server[]): RuleToolGroup[] {
+  return servers.map((s) => ({
+    serverId: s.id,
+    serverName: s.name,
+    tools: s.tools,
+  }))
+}
 
 export function AgentRulesPanel({
   agentId,
   rules,
+  attachedServers = EMPTY_SERVERS,
   onChange,
   focusEditor = false,
 }: {
   agentId: string
   rules: PolicyRule[]
-  onChange: (next: PolicyRule[]) => void
+  /** Attached MCP servers (Access tab) — fallback if rules/meta is empty. */
+  attachedServers?: Server[]
+  onChange: (next: PolicyRule[]) => void | Promise<void>
   /** Open with the new-rule editor expanded. */
   focusEditor?: boolean
 }) {
@@ -63,32 +78,92 @@ export function AgentRulesPanel({
   )
   const [dryRunId, setDryRunId] = useState<string | null>(null)
 
-  const sortedRules = useMemo(
-    () => applyTableSort(rules, RULE_SORT_COLUMNS, sort),
-    [rules, sort],
+  const fetchMeta = useCallback(() => getRulesMeta(agentId), [agentId])
+  const metaQuery = useApiQuery(['agents', 'rules-meta', agentId], fetchMeta)
+
+  const toolGroups = useMemo(() => {
+    const fromMeta = metaQuery.data?.tools
+    if (fromMeta && fromMeta.length > 0) return fromMeta
+    if (attachedServers.length > 0) return groupsFromServers(attachedServers)
+    return fromMeta ?? EMPTY_GROUPS
+  }, [metaQuery.data?.tools, attachedServers])
+
+  const samples: DryRunSample[] = useMemo(() => {
+    const fromApi = metaQuery.data?.dryRunSamples
+    if (!fromApi) return EMPTY_SAMPLES
+    return fromApi.map((s) => ({
+      id: s.id,
+      label: s.label,
+      tool: s.tool,
+      args: s.args,
+    }))
+  }, [metaQuery.data?.dryRunSamples])
+
+  const sortColumns = useMemo<SortColumnDef<PolicyRule>[]>(
+    () => [
+      { id: 'name', type: 'text', getValue: (r) => r.name },
+      {
+        id: 'mcp',
+        type: 'text',
+        getValue: (r) => serverForTool(toolGroups, r.tool)?.serverName ?? '',
+      },
+      { id: 'tool', type: 'text', getValue: (r) => r.tool },
+      { id: 'then', type: 'text', getValue: (r) => r.then },
+    ],
+    [toolGroups],
   )
 
-  const samples = mockDryRunSamples[agentId] ?? []
+  const sortedRules = useMemo(
+    () => applyTableSort(rules, sortColumns, sort),
+    [rules, sortColumns, sort],
+  )
+
   const selectedSample =
     samples.find((s) => s.id === dryRunId) ?? samples[0] ?? null
   const dryResult = selectedSample
     ? evaluateRules(rules, selectedSample.tool, selectedSample.args)
     : null
 
-  function saveRule(rule: PolicyRule) {
+  async function saveRule(rule: PolicyRule) {
     const next =
       editing === 'new' || editing == null
         ? [...rules, { ...rule, agentId }]
         : rules.map((r) =>
             r.id === rule.id ? { ...rule, agentId } : r,
           )
-    onChange(next)
+    await onChange(next)
     setEditing(null)
   }
 
   function toggleRule(rule: PolicyRule) {
     setEditing((prev) =>
       prev !== null && prev !== 'new' && prev.id === rule.id ? null : rule,
+    )
+  }
+
+  if (metaQuery.loading && !metaQuery.data) {
+    return (
+      <p className="text-muted-foreground text-xs">Loading attached MCPs…</p>
+    )
+  }
+
+  if (metaQuery.error && !metaQuery.data) {
+    return (
+      <EmptyState
+        compact
+        title="Couldn’t load rule editor"
+        description={metaQuery.error.message}
+        action={
+          <Button
+            type="button"
+            variant="outline"
+            size="xs"
+            onClick={metaQuery.refetch}
+          >
+            Retry
+          </Button>
+        }
+      />
     )
   }
 
@@ -145,6 +220,7 @@ export function AgentRulesPanel({
                       <RuleEditorPanel
                         key="new"
                         agentId={agentId}
+                        toolGroups={toolGroups}
                         initial={null}
                         onSave={saveRule}
                         onCancel={() => setEditing(null)}
@@ -159,7 +235,7 @@ export function AgentRulesPanel({
                   editing !== null &&
                   editing !== 'new' &&
                   editing.id === rule.id
-                const mcp = mcpServerForTool(rule.tool)
+                const mcp = serverForTool(toolGroups, rule.tool)
                 return (
                   <Fragment key={rule.id}>
                     <TableRow
@@ -182,7 +258,7 @@ export function AgentRulesPanel({
                       </TableCell>
                       <TableCell className="font-medium">{rule.name}</TableCell>
                       <TableCell className="text-[12px]">
-                        {mcp?.name ?? '—'}
+                        {mcp?.serverName ?? '—'}
                       </TableCell>
                       <TableCell className="font-mono text-[12px]">
                         {rule.tool}
@@ -201,6 +277,7 @@ export function AgentRulesPanel({
                           <RuleEditorPanel
                             key={rule.id}
                             agentId={agentId}
+                            toolGroups={toolGroups}
                             initial={rule}
                             onSave={saveRule}
                             onCancel={() => setEditing(null)}
@@ -236,7 +313,11 @@ export function AgentRulesPanel({
               ))}
             </div>
             {selectedSample ? (
-              <DryRunPanel sample={selectedSample} result={dryResult} />
+              <DryRunPanel
+                sample={selectedSample}
+                result={dryResult}
+                toolGroups={toolGroups}
+              />
             ) : null}
           </div>
         </CollapsibleDetails>
@@ -248,17 +329,19 @@ export function AgentRulesPanel({
 function DryRunPanel({
   sample,
   result,
+  toolGroups,
 }: {
   sample: DryRunSample
   result: ReturnType<typeof evaluateRules> | null
+  toolGroups: RuleToolGroup[]
 }) {
-  const mcp = mcpServerForTool(sample.tool)
+  const mcp = serverForTool(toolGroups, sample.tool)
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
         <span>
           <span className="text-muted-foreground">MCP </span>
-          {mcp?.name ?? '—'}
+          {mcp?.serverName ?? '—'}
         </span>
         <span className="font-mono">
           <span className="text-muted-foreground font-sans">Tool </span>

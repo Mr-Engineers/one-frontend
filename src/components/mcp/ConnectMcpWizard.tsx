@@ -15,23 +15,27 @@ import {
   RiUploadCloud2Line,
 } from '@remixicon/react'
 
+import {
+  createHostedServer,
+  createRemoteServer,
+  discoverHostedServer,
+  discoverRemoteServer,
+  listHostedSourceOptions,
+  type HostedAuthMethod,
+  type HostedDiscoverResult,
+  type HostedSourceKind,
+  type HostedSourceOption,
+  type ProposedHostedTool,
+  type ProposedToolRisk,
+  type RemoteDiscoverResult,
+  type Server,
+} from '@/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import {
-  HOSTED_SOURCE_OPTIONS,
-  mockBuildHostedServer,
-  mockDiscoverHosted,
-  mockDiscoverRemote,
-  type HostedAuthMethod,
-  type HostedDiscoveryResult,
-  type HostedSourceKind,
-  type McpServer,
-  type ProposedHostedTool,
-  type ProposedToolRisk,
-} from '@/mocks'
+import { HOSTED_SOURCE_OPTIONS } from '@/mocks'
 
 type WizardStep =
   | 'kind'
@@ -52,8 +56,8 @@ type DiscoverLog = {
   status: 'pending' | 'running' | 'done'
 }
 
-type DiscoveryResult = ReturnType<typeof mockDiscoverRemote>
-type HostedDiscovery = HostedDiscoveryResult
+type DiscoveryResult = RemoteDiscoverResult
+type HostedDiscovery = HostedDiscoverResult
 
 const DISCOVER_STEPS = [
   'Resolving endpoint',
@@ -79,15 +83,18 @@ const PROVISION_STEPS = [
   'Ready',
 ] as const
 
-const SOURCE_ICONS: Record<
-  HostedSourceKind,
-  typeof RiServerLine
-> = {
+const SOURCE_ICONS: Record<HostedSourceKind, typeof RiServerLine> = {
   rest: RiTerminalBoxLine,
   openapi: RiFileList3Line,
   database: RiDatabase2Line,
   package: RiCodeBoxLine,
   template: RiServerLine,
+}
+
+function defaultToolEnabled(tool: ProposedHostedTool): boolean {
+  // Treat sensitive like write for default-enabled UI.
+  if (tool.risk === 'write' || tool.risk === 'sensitive') return false
+  return tool.defaultEnabled
 }
 
 export function ConnectMcpWizard({
@@ -97,7 +104,7 @@ export function ConnectMcpWizard({
 }: {
   open: boolean
   onClose: () => void
-  onConnected: (server: McpServer) => void
+  onConnected: (server: Server) => void
 }) {
   const [step, setStep] = useState<WizardStep>('kind')
   const [name, setName] = useState('')
@@ -120,6 +127,12 @@ export function ConnectMcpWizard({
   const [openApiFileName, setOpenApiFileName] = useState<string | null>(null)
   const [openApiError, setOpenApiError] = useState<string | null>(null)
 
+  const [hostedSourceOptions, setHostedSourceOptions] = useState<
+    HostedSourceOption[]
+  >(HOSTED_SOURCE_OPTIONS)
+  const [stepError, setStepError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+
   useEffect(() => {
     if (!open) {
       setStep('kind')
@@ -136,33 +149,127 @@ export function ConnectMcpWizard({
       setOpenApiText(null)
       setOpenApiFileName(null)
       setOpenApiError(null)
+      setStepError(null)
+      setSubmitting(false)
+      setHostedSourceOptions(HOSTED_SOURCE_OPTIONS)
     }
   }, [open])
 
   useEffect(() => {
+    if (!open || step !== 'hosted_source') return
+    let cancelled = false
+    listHostedSourceOptions()
+      .then((options) => {
+        if (cancelled || options.length === 0) return
+        setHostedSourceOptions(options)
+      })
+      .catch(() => {
+        if (!cancelled) setHostedSourceOptions(HOSTED_SOURCE_OPTIONS)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, step])
+
+  useEffect(() => {
     if (step !== 'discovering') return
-    return runStagedLogs(DISCOVER_STEPS, setLogs, () => {
-      const result = mockDiscoverRemote(url, name)
-      setDiscovery(result)
-      setStep(result.requiresAuth ? 'auth' : 'review')
+    let cancelled = false
+    let apiDone = false
+    let animDone = false
+    let apiResult: DiscoveryResult | null = null
+    let apiError: string | null = null
+
+    setStepError(null)
+
+    const finish = () => {
+      if (cancelled || !apiDone || !animDone) return
+      if (apiError || !apiResult) {
+        setStepError(apiError ?? 'Discovery failed')
+        return
+      }
+      setDiscovery(apiResult)
+      setStep(apiResult.requiresAuth ? 'auth' : 'review')
+    }
+
+    void discoverRemoteServer({ url, name: name || null })
+      .then((result) => {
+        if (cancelled) return
+        apiResult = result
+        apiDone = true
+        finish()
+      })
+      .catch((err) => {
+        if (cancelled) return
+        apiError = err instanceof Error ? err.message : String(err)
+        apiDone = true
+        finish()
+      })
+
+    const cleanup = runStagedLogs(DISCOVER_STEPS, setLogs, () => {
+      animDone = true
+      finish()
     })
+
+    return () => {
+      cancelled = true
+      cleanup()
+    }
   }, [step, url, name])
 
   useEffect(() => {
     if (step !== 'hosted_scanning' || !hostedSource) return
-    return runStagedLogs(SCAN_STEPS, setLogs, () => {
-      const result = mockDiscoverHosted(hostedSource, name, url, {
-        openApiText: openApiText ?? undefined,
-        specFileName: openApiFileName ?? undefined,
-      })
-      setHostedDiscovery(result)
-      setProposedTools(result.tools)
+    let cancelled = false
+    let apiDone = false
+    let animDone = false
+    let apiResult: HostedDiscovery | null = null
+    let apiError: string | null = null
+
+    setStepError(null)
+
+    const finish = () => {
+      if (cancelled || !apiDone || !animDone) return
+      if (apiError || !apiResult) {
+        setStepError(apiError ?? 'Hosted discovery failed')
+        return
+      }
+      setHostedDiscovery(apiResult)
+      setProposedTools(apiResult.tools)
       const next: Record<string, boolean> = {}
-      for (const t of result.tools) next[t.name] = t.defaultEnabled
+      for (const t of apiResult.tools) next[t.name] = defaultToolEnabled(t)
       setEnabledTools(next)
       setStep('hosted_tools')
+    }
+
+    void discoverHostedServer({
+      source: hostedSource,
+      name: name || null,
+      url: url || null,
+      auth: hostedAuth,
+      openApiText,
     })
-  }, [step, hostedSource, name, url, openApiText, openApiFileName])
+      .then((result) => {
+        if (cancelled) return
+        apiResult = result
+        apiDone = true
+        finish()
+      })
+      .catch((err) => {
+        if (cancelled) return
+        apiError = err instanceof Error ? err.message : String(err)
+        apiDone = true
+        finish()
+      })
+
+    const cleanup = runStagedLogs(SCAN_STEPS, setLogs, () => {
+      animDone = true
+      finish()
+    })
+
+    return () => {
+      cancelled = true
+      cleanup()
+    }
+  }, [step, hostedSource, name, url, hostedAuth, openApiText])
 
   useEffect(() => {
     if (step !== 'hosted_provision') return
@@ -186,6 +293,7 @@ export function ConnectMcpWizard({
 
   function startRemoteDiscover() {
     if (!url.trim()) return
+    setStepError(null)
     setStep('discovering')
   }
 
@@ -196,55 +304,76 @@ export function ConnectMcpWizard({
     } else if (!url.trim()) {
       return
     }
+    setStepError(null)
     setStep('hosted_scanning')
   }
 
-  function finishRemoteConnect() {
-    if (!discovery) return
-    const now = new Date().toISOString()
-    onConnected({
-      id: `mcp_${Math.random().toString(36).slice(2, 8)}`,
-      name: discovery.name,
-      kind: 'remote',
-      url: discovery.url,
-      health: 'healthy',
-      toolCount: discovery.toolCount,
-      tools: discovery.tools,
-      lastSyncAt: now,
-      requiresAuth: discovery.requiresAuth,
-      description: discovery.description,
-    })
-    onClose()
+  async function finishRemoteConnect() {
+    if (!discovery || submitting) return
+    setSubmitting(true)
+    setStepError(null)
+    try {
+      const server = await createRemoteServer({
+        name: discovery.name,
+        url: discovery.url,
+        tools: discovery.tools,
+      })
+      onConnected(server)
+      onClose()
+    } catch (err) {
+      setStepError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  function finishHostedConnect() {
-    if (!hostedDiscovery) return
+  async function finishHostedConnect() {
+    if (!hostedDiscovery || !hostedSource || submitting) return
     const tools = proposedTools
       .filter((t) => enabledTools[t.name])
       .map((t) => t.name)
-    onConnected(
-      mockBuildHostedServer({
+    const toolDescriptions: Record<string, string> = {}
+    for (const t of proposedTools) {
+      if (enabledTools[t.name]) toolDescriptions[t.name] = t.description
+    }
+    setSubmitting(true)
+    setStepError(null)
+    try {
+      const server = await createHostedServer({
         name: hostedDiscovery.name,
+        source: hostedSource,
+        url: hostedDiscovery.baseUrl || url,
         slug: hostedDiscovery.slug,
-        source: hostedDiscovery.source,
-        baseUrl: hostedDiscovery.baseUrl,
-        enabledTools: tools,
+        auth: hostedAuth,
+        tools,
+        toolDescriptions,
         description: hostedDiscovery.description,
-        requiresAuth:
-          hostedDiscovery.requiresAuth || hostedAuth === 'oauth',
-      }),
-    )
-    onClose()
+        openApiText,
+      })
+      onConnected(server)
+      onClose()
+    } catch (err) {
+      setStepError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   function goBack() {
+    setStepError(null)
     switch (step) {
       case 'remote_form':
       case 'hosted_source':
         setStep('kind')
         break
+      case 'discovering':
+        setStep('remote_form')
+        break
       case 'hosted_form':
         setStep('hosted_source')
+        break
+      case 'hosted_scanning':
+        setStep('hosted_form')
         break
       case 'hosted_tools':
         setStep('hosted_form')
@@ -258,7 +387,9 @@ export function ConnectMcpWizard({
     step === 'remote_form' ||
     step === 'hosted_source' ||
     step === 'hosted_form' ||
-    step === 'hosted_tools'
+    step === 'hosted_tools' ||
+    (step === 'discovering' && !!stepError) ||
+    (step === 'hosted_scanning' && !!stepError)
 
   return (
     <div className="bg-card absolute inset-0 z-20 flex flex-col overflow-hidden">
@@ -298,6 +429,7 @@ export function ConnectMcpWizard({
 
         {step === 'hosted_source' ? (
           <HostedSourceStep
+            options={hostedSourceOptions}
             selected={hostedSource}
             onSelect={(id) => {
               setHostedSource(id)
@@ -309,6 +441,7 @@ export function ConnectMcpWizard({
         {step === 'hosted_form' && hostedSource ? (
           <HostedFormStep
             source={hostedSource}
+            options={hostedSourceOptions}
             name={name}
             url={url}
             auth={hostedAuth}
@@ -351,11 +484,22 @@ export function ConnectMcpWizard({
         ) : null}
 
         {step === 'hosted_scanning' ? (
-          <StagedProgress
-            title="Scanning source"
-            subtitle={openApiFileName ?? url}
-            logs={logs}
-          />
+          stepError ? (
+            <StepErrorPanel
+              title="Scan failed"
+              message={stepError}
+              onBack={() => {
+                setStepError(null)
+                setStep('hosted_form')
+              }}
+            />
+          ) : (
+            <StagedProgress
+              title="Scanning source"
+              subtitle={openApiFileName ?? url}
+              logs={logs}
+            />
+          )
         ) : null}
 
         {step === 'hosted_tools' && hostedDiscovery ? (
@@ -452,8 +596,22 @@ export function ConnectMcpWizard({
               Agents never call your API directly. Attach this MCP to an agent,
               then grant tools via roles.
             </p>
-            <Button type="button" onClick={finishHostedConnect}>
-              Add to registry
+            {stepError ? (
+              <p className="text-destructive text-xs">{stepError}</p>
+            ) : null}
+            <Button
+              type="button"
+              disabled={submitting}
+              onClick={() => void finishHostedConnect()}
+            >
+              {submitting ? (
+                <>
+                  <RiLoader4Line className="size-3.5 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                'Add to registry'
+              )}
             </Button>
           </div>
         ) : null}
@@ -500,7 +658,18 @@ export function ConnectMcpWizard({
         ) : null}
 
         {step === 'discovering' ? (
-          <StagedProgress title="Finding MCP" subtitle={url} logs={logs} />
+          stepError ? (
+            <StepErrorPanel
+              title="Discovery failed"
+              message={stepError}
+              onBack={() => {
+                setStepError(null)
+                setStep('remote_form')
+              }}
+            />
+          ) : (
+            <StagedProgress title="Finding MCP" subtitle={url} logs={logs} />
+          )
         ) : null}
 
         {step === 'auth' ? (
@@ -583,12 +752,51 @@ export function ConnectMcpWizard({
                 ))}
               </ul>
             </div>
-            <Button type="button" onClick={finishRemoteConnect}>
-              Connect MCP
+            {stepError ? (
+              <p className="text-destructive text-xs">{stepError}</p>
+            ) : null}
+            <Button
+              type="button"
+              disabled={submitting}
+              onClick={() => void finishRemoteConnect()}
+            >
+              {submitting ? (
+                <>
+                  <RiLoader4Line className="size-3.5 animate-spin" />
+                  Connecting…
+                </>
+              ) : (
+                'Connect MCP'
+              )}
             </Button>
           </div>
         ) : null}
       </div>
+    </div>
+  )
+}
+
+function StepErrorPanel({
+  title,
+  message,
+  onBack,
+}: {
+  title: string
+  message: string
+  onBack: () => void
+}) {
+  return (
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-5 px-4 py-8 sm:px-6 sm:py-10">
+      <div>
+        <p className="text-sm font-medium">{title}</p>
+        <p className="text-destructive mt-2 text-xs leading-relaxed">
+          {message}
+        </p>
+      </div>
+      <Button type="button" variant="outline" onClick={onBack}>
+        <RiArrowLeftLine className="size-3.5" />
+        Back
+      </Button>
     </div>
   )
 }
@@ -705,9 +913,11 @@ function KindStep({
 }
 
 function HostedSourceStep({
+  options,
   selected,
   onSelect,
 }: {
+  options: HostedSourceOption[]
   selected: HostedSourceKind | null
   onSelect: (id: HostedSourceKind) => void
 }) {
@@ -721,7 +931,7 @@ function HostedSourceStep({
         </p>
       </div>
       <div className="grid gap-2 sm:grid-cols-2">
-        {HOSTED_SOURCE_OPTIONS.map((opt) => {
+        {options.map((opt) => {
           const Icon = SOURCE_ICONS[opt.id]
           const active = selected === opt.id
           return (
@@ -753,6 +963,7 @@ function HostedSourceStep({
 
 function HostedFormStep({
   source,
+  options,
   name,
   url,
   auth,
@@ -765,6 +976,7 @@ function HostedFormStep({
   onSubmit,
 }: {
   source: HostedSourceKind
+  options: HostedSourceOption[]
   name: string
   url: string
   auth: HostedAuthMethod
@@ -776,7 +988,9 @@ function HostedFormStep({
   onOpenApiFile: (file: File | null) => void | Promise<void>
   onSubmit: () => void
 }) {
-  const option = HOSTED_SOURCE_OPTIONS.find((o) => o.id === source)!
+  const option =
+    options.find((o) => o.id === source) ??
+    HOSTED_SOURCE_OPTIONS.find((o) => o.id === source)!
   const isOpenApi = source === 'openapi'
   const authOptions: { id: HostedAuthMethod; label: string }[] = [
     { id: 'api_key', label: 'API key' },
@@ -801,7 +1015,7 @@ function HostedFormStep({
         <p className="text-muted-foreground mt-1 text-xs">
           {isOpenApi
             ? 'Upload a spec to map endpoints into tools. Without a file we use a sample catalog.'
-            : 'How Modus reaches your system (mock — no real network call).'}
+            : 'How Modus reaches your system.'}
         </p>
       </div>
 
@@ -876,8 +1090,7 @@ function HostedFormStep({
         />
         {isOpenApi ? (
           <p className="text-muted-foreground text-xs">
-            Where Modus calls your API. Optional if the spec defines servers —
-            leave empty to use a sample when no file is uploaded.
+            Where Modus calls your API. Optional if the spec defines servers.
           </p>
         ) : null}
       </div>
@@ -964,7 +1177,7 @@ function HostedToolsStep({
         </p>
         <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
           {isOpenApi
-            ? 'Titles and structure come from the spec. Edit AI descriptions, expand for parameters, and turn off tools you do not want exposed.'
+            ? 'Titles and structure come from the spec. Edit AI descriptions, expand for details, and turn off tools you do not want exposed.'
             : 'Deny by default for writes. Enable only what this MCP should expose — roles can narrow further later.'}
         </p>
         {discovery.specTitle ? (
@@ -1186,76 +1399,6 @@ function ToolEditorRow({
                   </>
                 ) : null}
               </dl>
-
-              {tool.parameters && tool.parameters.length > 0 ? (
-                <div className="border-border border">
-                  <div className="border-border text-muted-foreground border-b px-2 py-1 font-mono text-[10px]">
-                    parameters
-                  </div>
-                  <ul className="divide-border divide-y">
-                    {tool.parameters.map((p) => (
-                      <li
-                        key={`${p.in}:${p.name}`}
-                        className="px-2 py-1.5 text-[11px]"
-                      >
-                        <span className="font-mono">
-                          {p.name}
-                          {p.required ? (
-                            <span className="text-destructive"> *</span>
-                          ) : null}
-                        </span>
-                        <span className="text-muted-foreground ml-2 font-mono">
-                          {p.in}
-                          {p.schemaType ? ` · ${p.schemaType}` : ''}
-                        </span>
-                        {p.description ? (
-                          <span className="text-muted-foreground mt-0.5 block text-xs">
-                            {p.description}
-                          </span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {tool.requestBody ? (
-                <div className="border-border border px-2 py-1.5 text-[11px]">
-                  <span className="text-muted-foreground font-mono text-[10px]">
-                    request body
-                    {tool.requestBody.required ? ' · required' : ''}
-                  </span>
-                  <p className="mt-0.5 font-mono">
-                    {tool.requestBody.contentTypes.join(', ') || 'body'}
-                  </p>
-                  {tool.requestBody.summary ? (
-                    <p className="text-muted-foreground mt-0.5 text-xs">
-                      {tool.requestBody.summary}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {tool.responses && tool.responses.length > 0 ? (
-                <div className="border-border border">
-                  <div className="border-border text-muted-foreground border-b px-2 py-1 font-mono text-[10px]">
-                    responses
-                  </div>
-                  <ul className="divide-border divide-y">
-                    {tool.responses.map((r) => (
-                      <li
-                        key={r.status}
-                        className="flex gap-2 px-2 py-1.5 font-mono text-[11px]"
-                      >
-                        <span className="shrink-0">{r.status}</span>
-                        <span className="text-muted-foreground">
-                          {r.description || '—'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
             </div>
           ) : null}
         </div>
