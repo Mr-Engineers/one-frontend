@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import {
+  RULE_FIELDS,
   condOpLabel,
   condOpNeedsValue,
   createConditionId,
   emptyConditionLeaf,
   fieldsForTool,
   isConditionGroup,
+  leafDefaultsForField,
   operatorsForField,
   type CondField,
   type CondOp,
@@ -32,29 +34,52 @@ function updateChild(
   return { ...group, children }
 }
 
+function resolveFieldDef(
+  fieldId: string,
+  toolFields: RuleFieldDef[],
+  catalog: RuleFieldDef[],
+): RuleFieldDef {
+  return (
+    toolFields.find((f) => f.id === fieldId) ??
+    catalog.find((f) => f.id === fieldId) ?? {
+      id: fieldId,
+      label: fieldId,
+      type: 'text' as const,
+      tools: [],
+    }
+  )
+}
+
 function NestedGroup({
   group,
   depth,
   tool,
+  fieldCatalog,
   onChange,
 }: {
   group: ConditionGroup
   depth: number
   tool: string
+  fieldCatalog: RuleFieldDef[]
   onChange: (next: ConditionGroup) => void
 }) {
-  const fields = fieldsForTool(tool)
+  const fields = fieldsForTool(tool, fieldCatalog)
   const canNest = depth < MAX_DEPTH
+  const defaultDef = fields[0]
+  const defaultField = defaultDef?.id ?? 'quantity'
+  const defaults = leafDefaultsForField(defaultDef)
 
   function setCombinator(combinator: 'and' | 'or') {
     onChange({ ...group, combinator })
   }
 
   function addLeaf() {
-    const field = fields[0]?.id ?? 'total_eur'
     onChange({
       ...group,
-      children: [...group.children, emptyConditionLeaf(field)],
+      children: [
+        ...group.children,
+        emptyConditionLeaf(defaultField, defaults.op, defaults.value),
+      ],
     })
   }
 
@@ -67,7 +92,9 @@ function NestedGroup({
         {
           id: createConditionId(),
           combinator: 'or',
-          children: [emptyConditionLeaf(fields[0]?.id ?? 'total_eur')],
+          children: [
+            emptyConditionLeaf(defaultField, defaults.op, defaults.value),
+          ],
         },
       ],
     })
@@ -113,6 +140,11 @@ function NestedGroup({
       </div>
 
       <div className="flex flex-col gap-2">
+        {group.children.length === 0 ? (
+          <p className="text-muted-foreground font-mono text-[11px]">
+            Always matches (no conditions)
+          </p>
+        ) : null}
         {group.children.map((child) =>
           isConditionGroup(child) ? (
             <div key={child.id} className="relative pl-2">
@@ -128,6 +160,7 @@ function NestedGroup({
                 group={child}
                 depth={depth + 1}
                 tool={tool}
+                fieldCatalog={fieldCatalog}
                 onChange={(next) =>
                   onChange(updateChild(group, child.id, next))
                 }
@@ -138,6 +171,7 @@ function NestedGroup({
               key={child.id}
               leaf={child}
               fields={fields}
+              catalog={fieldCatalog}
               onChange={(next) =>
                 onChange(updateChild(group, child.id, next))
               }
@@ -166,31 +200,56 @@ function NestedGroup({
 function LeafRow({
   leaf,
   fields,
+  catalog,
   onChange,
   onRemove,
 }: {
   leaf: ConditionLeaf
   fields: RuleFieldDef[]
+  catalog: RuleFieldDef[]
   onChange: (next: ConditionLeaf) => void
   onRemove: () => void
 }) {
-  const fieldDef =
-    fields.find((f) => f.id === leaf.field) ?? fields[0] ?? null
-  const ops = fieldDef ? operatorsForField(fieldDef.type) : []
+  const fieldDef = resolveFieldDef(leaf.field, fields, catalog)
+  const fieldOptions =
+    fields.some((f) => f.id === leaf.field) || fields.length === 0
+      ? fields.length > 0
+        ? fields
+        : [fieldDef]
+      : [fieldDef, ...fields]
+  const ops = operatorsForField(fieldDef.type)
+  const opOptions = ops.includes(leaf.op) ? ops : [leaf.op, ...ops]
   const needsValue = condOpNeedsValue(leaf.op)
+  const enumOptions = fieldDef.options ?? []
+  const valueOptions =
+    !leaf.value || enumOptions.includes(leaf.value)
+      ? enumOptions
+      : [leaf.value, ...enumOptions]
 
   function setField(field: CondField) {
-    const nextDef = fields.find((f) => f.id === field)
-    const nextOps = nextDef ? operatorsForField(nextDef.type) : ops
-    const op = nextOps.includes(leaf.op) ? leaf.op : (nextOps[0] ?? 'eq')
+    const nextDef = resolveFieldDef(field, fields, catalog)
+    const next = leafDefaultsForField(nextDef)
+    const nextOps = operatorsForField(nextDef.type)
+    const op = nextOps.includes(leaf.op) ? leaf.op : next.op
+    const nextEnum = nextDef.options ?? []
     onChange({
       ...leaf,
       field,
       op,
       value:
-        nextDef?.type === 'enum' && nextDef.options?.[0]
-          ? nextDef.options[0]
+        nextDef.type === 'enum'
+          ? nextEnum.includes(leaf.value)
+            ? leaf.value
+            : next.value
           : leaf.value,
+    })
+  }
+
+  function setOp(next: CondOp) {
+    onChange({
+      ...leaf,
+      op: next,
+      value: condOpNeedsValue(next) ? leaf.value : '',
     })
   }
 
@@ -203,10 +262,7 @@ function LeafRow({
         aria-label="Field"
         value={leaf.field}
         onValueChange={(next) => setField(next as CondField)}
-        options={(fields.length
-          ? fields
-          : [{ id: leaf.field, label: leaf.field }]
-        ).map((f) => ({
+        options={fieldOptions.map((f) => ({
           value: f.id,
           label: f.label,
         }))}
@@ -217,16 +273,14 @@ function LeafRow({
         mono
         aria-label="Operator"
         value={leaf.op}
-        onValueChange={(next) =>
-          onChange({ ...leaf, op: next as CondOp, value: leaf.value })
-        }
-        options={ops.map((op) => ({
+        onValueChange={(next) => setOp(next as CondOp)}
+        options={opOptions.map((op) => ({
           value: op,
           label: condOpLabel(op),
         }))}
       />
       {needsValue ? (
-        fieldDef?.type === 'enum' && fieldDef.options ? (
+        fieldDef.type === 'enum' && enumOptions.length > 0 ? (
           leaf.op === 'in' || leaf.op === 'not_in' ? (
             <Input
               className="h-7 min-w-0 font-mono text-[11px]"
@@ -242,7 +296,7 @@ function LeafRow({
               aria-label="Value"
               value={leaf.value}
               onValueChange={(next) => onChange({ ...leaf, value: next })}
-              options={fieldDef.options.map((opt) => ({
+              options={valueOptions.map((opt) => ({
                 value: opt,
                 label: opt,
               }))}
@@ -251,7 +305,7 @@ function LeafRow({
         ) : (
           <Input
             className="h-7 min-w-0 font-mono text-[11px]"
-            type={fieldDef?.type === 'number' ? 'number' : 'text'}
+            type={fieldDef.type === 'number' ? 'number' : 'text'}
             value={leaf.value}
             onChange={(e) => onChange({ ...leaf, value: e.target.value })}
           />
@@ -274,13 +328,23 @@ function LeafRow({
 export function ConditionBuilder({
   value,
   tool,
+  fields,
   onChange,
 }: {
   value: ConditionGroup
   tool: string
+  /** Field catalog from rules/meta (falls back to mock RULE_FIELDS). */
+  fields?: RuleFieldDef[]
   onChange: (next: ConditionGroup) => void
 }) {
+  const catalog = fields && fields.length > 0 ? fields : RULE_FIELDS
   return (
-    <NestedGroup group={value} depth={1} tool={tool} onChange={onChange} />
+    <NestedGroup
+      group={value}
+      depth={1}
+      tool={tool}
+      fieldCatalog={catalog}
+      onChange={onChange}
+    />
   )
 }

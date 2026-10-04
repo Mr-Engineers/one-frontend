@@ -138,4 +138,10 @@ export {
   type WorkspacePatch,
 } from './settings'
 export { getMe, type Profile } from './profile'
+export {
+  getSpecialist,
+  listSpecialists,
+  type Specialist as ApiSpecialist,
+  type SpecialistsPage,
+} from './specialists'
 export type { ApiBody, ApiQuery, ApiResponse, Schema } from './types'

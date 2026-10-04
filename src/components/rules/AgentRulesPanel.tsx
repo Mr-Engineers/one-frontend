@@ -32,8 +32,10 @@ import {
 import { cn } from '@/lib/utils'
 import {
   evaluateRules,
+  fieldDefsFromMeta,
   type DryRunSample,
   type PolicyRule,
+  type RuleFieldDef,
 } from '@/mocks'
 
 type Editing = PolicyRule | 'new' | null
@@ -87,6 +89,12 @@ export function AgentRulesPanel({
     if (attachedServers.length > 0) return groupsFromServers(attachedServers)
     return fromMeta ?? EMPTY_GROUPS
   }, [metaQuery.data?.tools, attachedServers])
+
+  const fieldCatalog: RuleFieldDef[] = useMemo(() => {
+    const fromApi = metaQuery.data?.fields
+    if (!fromApi || fromApi.length === 0) return []
+    return fieldDefsFromMeta(fromApi)
+  }, [metaQuery.data?.fields])
 
   const samples: DryRunSample[] = useMemo(() => {
     const fromApi = metaQuery.data?.dryRunSamples
@@ -221,6 +229,7 @@ export function AgentRulesPanel({
                         key="new"
                         agentId={agentId}
                         toolGroups={toolGroups}
+                        fieldCatalog={fieldCatalog}
                         initial={null}
                         onSave={saveRule}
                         onCancel={() => setEditing(null)}
@@ -278,6 +287,7 @@ export function AgentRulesPanel({
                             key={rule.id}
                             agentId={agentId}
                             toolGroups={toolGroups}
+                            fieldCatalog={fieldCatalog}
                             initial={rule}
                             onSave={saveRule}
                             onCancel={() => setEditing(null)}

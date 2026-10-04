@@ -146,11 +146,37 @@ const DECISION_OUTCOME_LABELS: Record<string, string> = {
   pass: 'Passed',
   allow: 'Allowed',
   deny: 'Denied',
+  clear: 'Cleared',
   needs_ai: 'Sent to AI',
   skipped: 'Skipped',
   caution: 'Needs review',
   pending: 'Waiting',
   rate_limited: 'Rate limited',
+}
+
+/** Human-readable specialist Choice / model recommendation. */
+export function humanizeModelChoice(choice: string | null | undefined): string {
+  if (choice == null || choice === '') return 'No AI recommendation'
+  const normalized = choice.toLowerCase()
+  if (normalized.includes('human') || normalized === 'caution') {
+    return 'Needs your review'
+  }
+  if (normalized === 'clear' || normalized.includes('allow')) return 'Leans allow'
+  if (normalized === 'deny' || normalized.includes('deny')) return 'Leans deny'
+  return choice.replaceAll('_', ' ')
+}
+
+export function asSignalNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+export function asSignalString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
 }
 
 export function humanizeDecisionStage(stage: string): string {

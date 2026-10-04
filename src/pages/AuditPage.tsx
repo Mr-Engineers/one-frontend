@@ -13,9 +13,13 @@ import {
   DetailSection,
   JsonBlock,
   MetaGrid,
+  asSignalNumber,
+  asSignalString,
+  formatProb,
   formatTimestamp,
   humanizeDecisionOutcome,
   humanizeDecisionStage,
+  humanizeModelChoice,
 } from '@/components/list/DetailMeta'
 import { EmptyState, ListEmptyState } from '@/components/list/EmptyState'
 import {
@@ -339,11 +343,114 @@ function AuditDetail({ event }: { event: AuditEvent }) {
           ))}
         </ol>
       </DetailSection>
+      {detailQuery.data ? (
+        <AiDecisionSection detail={detailQuery.data} />
+      ) : null}
       <DetailSection title="Request details">
         <CollapsibleDetails summary="Show request data (sensitive fields hidden)">
           <JsonBlock value={view.argsRedacted} />
         </CollapsibleDetails>
       </DetailSection>
     </>
+  )
+}
+
+function AiDecisionSection({ detail }: { detail: AuditEventDetail }) {
+  const signals = detail.signals ?? {}
+  const specialistStep = detail.decisionChain.find((s) => s.stage === 'specialist')
+  const choice =
+    asSignalString(signals.choice) ??
+    (specialistStep && specialistStep.outcome !== 'skipped'
+      ? specialistStep.outcome
+      : null)
+  const specialist =
+    asSignalString(signals.specialist) ??
+    (specialistStep?.outcome === 'skipped' ? null : 'specialist')
+  const allowProb = asSignalNumber(signals.allow_prob)
+  const denyProb = asSignalNumber(signals.deny_prob)
+  const modelConfidence = asSignalNumber(signals.confidence)
+  const modelLatency = asSignalNumber(signals.latency_ms)
+  const version = asSignalString(signals.version)
+  const available = signals.available === true
+  const failed = signals.failed === true
+  const skipped =
+    !available &&
+    !failed &&
+    (specialistStep == null || specialistStep.outcome === 'skipped')
+
+  if (skipped) {
+    return (
+      <DetailSection title="AI review">
+        <EmptyState
+          compact
+          title="AI not consulted"
+          description="This call was decided by access checks and rules without a specialist review."
+        />
+      </DetailSection>
+    )
+  }
+
+  return (
+    <DetailSection title="AI review">
+      <MetaGrid
+        items={[
+          {
+            label: 'Recommendation',
+            value: failed
+              ? 'Specialist failed'
+              : humanizeModelChoice(choice),
+          },
+          {
+            label: 'Choice',
+            value: choice ?? '—',
+          },
+          {
+            label: 'Confidence',
+            value:
+              modelConfidence != null
+                ? formatProb(modelConfidence)
+                : detail.confidence != null
+                  ? formatProb(detail.confidence)
+                  : '—',
+          },
+          {
+            label: 'Allow / deny',
+            value:
+              allowProb != null && denyProb != null
+                ? `${formatProb(allowProb)} / ${formatProb(denyProb)}`
+                : '—',
+          },
+          {
+            label: 'Specialist',
+            value: specialist ?? '—',
+          },
+          {
+            label: 'Model',
+            value: version ?? '—',
+          },
+          {
+            label: 'AI latency',
+            value: modelLatency != null ? `${Math.round(modelLatency)} ms` : '—',
+          },
+          {
+            label: 'Chain outcome',
+            value: specialistStep
+              ? humanizeDecisionOutcome(specialistStep.outcome)
+              : '—',
+          },
+        ]}
+      />
+      {specialistStep?.detail ? (
+        <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+          {specialistStep.detail}
+        </p>
+      ) : null}
+      <CollapsibleDetails summary="Show reasons & raw signals">
+        <div className="flex flex-col gap-2">
+          {detail.reasons.length > 0 ? <JsonBlock value={detail.reasons} /> : null}
+          <JsonBlock value={signals} />
+        </div>
+      </CollapsibleDetails>
+    </DetailSection>
   )
 }

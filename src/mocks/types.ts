@@ -124,22 +124,14 @@ export type CondOp =
   | 'is_empty'
   | 'not_empty'
 
-export type CondField =
-  | 'shop_location'
-  | 'total_eur'
-  | 'vendor'
-  | 'qty'
-  | 'delta'
-  | 'abs_delta'
-  | 'reason'
-  | 'sku'
-  | 'priority'
-  | 'audience'
+/** Field ids from GET /agents/{id}/rules/meta (plus legacy mock fields). */
+export type CondField = string
 
 export type ConditionLeaf = {
   id: string
   field: CondField
   op: CondOp
+  /** Serialized for the editor; booleans/numbers become strings in the UI. */
   value: string
 }
 
@@ -163,12 +155,13 @@ export type PolicyRule = {
 export type RuleFieldType = 'enum' | 'number' | 'text'
 
 export type RuleFieldDef = {
-  id: CondField
+  id: string
   label: string
   type: RuleFieldType
   options?: string[]
-  /** Tool globs this field applies to (`shop.*`, exact names). */
+  /** Tool globs / qualified tools this field applies to (`marketplace.*`, `*`). */
   tools: string[]
+  computed?: boolean
 }
 
 export type DryRunSample = {
@@ -184,8 +177,8 @@ export type SpecialistHealth = 'healthy' | 'degraded' | 'down' | 'circuit_open'
 export type Specialist = {
   id: string
   name: string
-  /** Agent this specialist evaluates for. */
-  agentId: string
+  /** Agent this specialist evaluates for (`null` when unbound). */
+  agentId: string | null
   /** Gateway route key, e.g. `local/purchasing`. */
   modelId: string
   /** Pinned artifact / checkpoint revision. */
@@ -212,8 +205,8 @@ export type Specialist = {
     cooldownSeconds: number
   }
   criteriaSummary: string
-  loadedAt: string
-  lastEvaluateAt: string
+  loadedAt: string | null
+  lastEvaluateAt: string | null
 }
 
 /** Runtime / incident events a webhook can subscribe to. */

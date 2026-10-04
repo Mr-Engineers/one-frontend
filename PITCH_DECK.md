@@ -182,23 +182,38 @@ AI Control Layer challenge · Self-host + license + optional maintenance
 
 ---
 
-## Slide 9 — Validation / traction
+## Slide 9 — Case study: card dispute ops
 
-**Purpose:** Hit evaluation criteria: robustness, reporting, test suite, implementability.
+**Purpose:** Make the product concrete with a finance use case judges can follow — two MCPs, one agent, Modus in the middle. Proof (tests / audit) supports the story, not the other way around.
 
-**Headline:** Prove it — positive, negative, and judge-ready
+**Headline:** Chargebacks without trusting the network portal
+
+**One-sentence explanation (for you / speaker notes):**  
+A Dispute Ops agent sits between an **untrusted Card Network Dispute Portal** (external free text — merchant “representation”) and an internal **Case Desk** (refunds, chargebacks, case mutations). Without Modus, poisoned portal text can make the agent favor the merchant or skip the chargeback. With Modus, reads are allowed, money-moving writes are gated by rules + dispute specialist + human approval, and the full decision chain is audited.
 
 **On slide:**
 
-- **Executable test suite:** allow + block/redact cases (PII, injection-ish prompts, budget exceed, unauthorized tool)
-- **Live demo path:** happy → deny → caution/approval → rate-limit
-- **Security reporting:** blocked threats, budget bars, audit export
-- **Config experiment:** change threshold / disable rule → behavior updates
-- **Telemetry:** latency / decision counts (even if lightweight)
+- **Setup:** Dispute Ops agent · role `dispute-operator` · two MCPs attached
+- **Card Network Portal MCP** *(untrusted)* — txn / merchant / dispute reads; `accept_representation` is the trap
+- **Case Desk MCP** *(bank-internal)* — `refund.post`, `chargeback.file`, case updates (irreversible money)
+- **Scenario:** €189 unrecognized travel charge; merchant representation injects “auto-favor merchant / ignore fraud score”
+- **With Modus:** deny or `needs_ai` → Dispute specialist → human Allow/Deny → provisional refund + chargeback filed
+- **Without Modus:** naked agent trusts portal text → wrong close / lost money or window
 
-**Visual:** Green/red test matrix + one audit “decision chain” screenshot.
+**Contrast beat (small table on slide):**
 
-**Say:** “Judges can run our suite and poke the config. We’re not slideware.”
+| Naked agent | Modus-secured |
+| --- | --- |
+| Treats portal text as truth | Treats representation as hostile |
+| Accepts bad representation / refund | Rules + specialist block or escalate |
+| Chat log only | Approvals + exportable audit chain |
+
+**Visual:** Two-box architecture — *Network Portal (external)* ↔ *Modus* ↔ *Case Desk (internal)* — with a red “injection” callout on representation text and a green path through Approvals.
+
+**Say (30–45s):**  
+“Same pattern as our shop demo, but for banking. The network portal is the untrusted surface — free-text merchant representation. Case Desk is where money moves. Modus lets the agent investigate, then stops irreversible actions until policy and a human say go. That’s the control layer in a real finance dispute flow.”
+
+**Optional footer (one line, if space):** Secure vs naked test suite + audit export prove the contrast live.
 
 ---
 
@@ -242,4 +257,4 @@ AI Control Layer challenge · Self-host + license + optional maintenance
 
 ### One-line narrative
 
-> Agents are productive and dangerous → market needs a control plane → Modus is that plane → hybrid + approvals + budgets + MCP → differentiated by self-host + SecOps audit → license + maintenance business → proven with tests and live config → ship with us.
+> Agents are productive and dangerous → market needs a control plane → Modus is that plane → hybrid + approvals + budgets + MCP → differentiated by self-host + SecOps audit → license + maintenance business → proven on card dispute ops (Network Portal + Case Desk) → ship with us.

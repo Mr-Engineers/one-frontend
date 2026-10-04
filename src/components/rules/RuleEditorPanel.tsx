@@ -10,9 +10,13 @@ import {
   condOpNeedsValue,
   createRuleId,
   emptyConditionGroup,
+  emptyConditionLeaf,
+  fieldsForTool,
   isConditionGroup,
+  leafDefaultsForField,
   type ConditionGroup,
   type PolicyRule,
+  type RuleFieldDef,
   type RuleOutcome,
 } from '@/mocks'
 
@@ -41,6 +45,7 @@ function serverForTool(
 export function RuleEditorPanel({
   agentId,
   toolGroups,
+  fieldCatalog,
   initial,
   defaultMcpId,
   onSave,
@@ -49,6 +54,8 @@ export function RuleEditorPanel({
   agentId: string
   /** Attached MCP tool catalog from GET /agents/{id}/rules/meta. */
   toolGroups: RuleToolGroup[]
+  /** Condition fields from GET /agents/{id}/rules/meta. */
+  fieldCatalog?: RuleFieldDef[]
   initial?: PolicyRule | null
   /** Prefer this MCP when creating a rule (e.g. active filter). */
   defaultMcpId?: string | null
@@ -73,9 +80,23 @@ export function RuleEditorPanel({
   const [mcpId, setMcpId] = useState(initialMcpId)
   const [tool, setTool] = useState(initialTool)
   const [then, setThen] = useState<RuleOutcome>(initial?.then ?? 'needs_ai')
-  const [when, setWhen] = useState<ConditionGroup>(
-    initial?.when ?? emptyConditionGroup('and'),
-  )
+  const [when, setWhen] = useState<ConditionGroup>(() => {
+    if (initial?.when) return initial.when
+    const catalog = fieldCatalog ?? []
+    const first = fieldsForTool(initialTool, catalog)[0]
+    const defaults = leafDefaultsForField(first)
+    const seed = emptyConditionGroup('and')
+    return {
+      ...seed,
+      children: [
+        emptyConditionLeaf(
+          first?.id ?? 'quantity',
+          defaults.op,
+          defaults.value,
+        ),
+      ],
+    }
+  })
 
   const tools = groups.find((g) => g.serverId === mcpId)?.tools ?? []
   const canSave = name.trim().length > 0 && Boolean(tool) && validateWhen(when)
@@ -164,7 +185,12 @@ export function RuleEditorPanel({
         <Label className="text-muted-foreground font-mono text-[11px]">
           when
         </Label>
-        <ConditionBuilder value={when} tool={tool} onChange={setWhen} />
+        <ConditionBuilder
+          value={when}
+          tool={tool}
+          fields={fieldCatalog}
+          onChange={setWhen}
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">

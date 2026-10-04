@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 
+import { listSpecialists } from '@/api'
 import {
   DetailHeader,
   DetailSection,
@@ -13,11 +14,12 @@ import {
   AgentBadge,
   SpecialistHealthBadge,
 } from '@/components/status/StatusBadge'
+import { useApiQuery } from '@/hooks/useApiQuery'
 import { useListDetailSquash } from '@/hooks/useListDetailSquash'
-import { useSimulatedLoading } from '@/hooks/useSimulatedLoading'
 import { routes } from '@/lib/routes'
+import { specialistsOrMock } from '@/lib/specialists'
 import { cn } from '@/lib/utils'
-import { mockSpecialists, type Specialist } from '@/mocks'
+import type { Specialist } from '@/mocks'
 
 const DETAIL_TITLE_ID = 'specialist-detail-title'
 
@@ -54,8 +56,12 @@ function circuitStatus(spc: Specialist) {
 }
 
 export function SpecialistsPage() {
-  const loading = useSimulatedLoading()
-  const specialists = mockSpecialists
+  const fetchList = useCallback(() => listSpecialists(), [])
+  const listQuery = useApiQuery(['specialists', 'list'], fetchList)
+  const specialists = useMemo(
+    () => specialistsOrMock(listQuery.data?.items),
+    [listQuery.data?.items],
+  )
   const { squash, openRow, closeRow } = useListDetailSquash<Specialist>({
     listPath: routes.specialists,
     paramKey: 'specialistId',
@@ -64,7 +70,7 @@ export function SpecialistsPage() {
   })
 
   const list = useMemo(() => {
-    if (loading) {
+    if (listQuery.loading) {
       return (
         <>
           <div className="border-border flex h-9 shrink-0 items-center gap-3 border-b px-3">
@@ -74,6 +80,14 @@ export function SpecialistsPage() {
           </div>
           <CardGridSkeleton cards={4} gridClassName="lg:grid-cols-2" />
         </>
+      )
+    }
+    if (listQuery.error) {
+      return (
+        <EmptyState
+          title="Couldn’t load specialists"
+          description={listQuery.error.message}
+        />
       )
     }
     return (
@@ -106,7 +120,13 @@ export function SpecialistsPage() {
         )}
       </>
     )
-  }, [loading, openRow, specialists, squash.overlay?.payload.id])
+  }, [
+    listQuery.error,
+    listQuery.loading,
+    openRow,
+    specialists,
+    squash.overlay?.payload.id,
+  ])
 
   return (
     <SquashListArea

@@ -18,6 +18,7 @@ import {
   listRoles,
   listRules,
   listServers,
+  listSpecialists,
   patchAgent,
   patchQuota,
   revokeAgent,
@@ -87,16 +88,17 @@ import {
   type TableSortState,
 } from '@/lib/table-sort'
 import { routes } from '@/lib/routes'
+import { specialistsOrMock } from '@/lib/specialists'
 import { cn } from '@/lib/utils'
 import {
   createConditionId,
   isConditionGroup,
-  mockSpecialists,
   type CondField,
   type CondOp,
   type ConditionGroup,
   type ConditionLeaf,
   type PolicyRule,
+  type Specialist,
 } from '@/mocks'
 
 const DETAIL_TITLE_ID = 'agent-detail-title'
@@ -179,36 +181,54 @@ function asToolRef(item: unknown): { serverId: string; tool: string } | null {
   return { serverId: row.serverId, tool: row.tool }
 }
 
+/** Editor stores leaf values as strings; API uses arrays for in/not_in. */
+function leafValue(value: unknown): string {
+  if (value === undefined || value === null) return ''
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v)).join(',')
+  }
+  if (typeof value === 'string') return value
+  if (typeof value === 'boolean' || typeof value === 'number') {
+    return String(value)
+  }
+  return JSON.stringify(value)
+}
+
+function leafValueForApi(op: CondOp, value: string): unknown {
+  if (op === 'in' || op === 'not_in') {
+    return value
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  if (op === 'gt' || op === 'gte' || op === 'lt' || op === 'lte') {
+    const n = Number(value)
+    if (value.trim() !== '' && Number.isFinite(n)) return n
+  }
+  return value
+}
+
+/** Normalize API `when` to the write shape before dirty-checking. */
+function whenForCompare(node: Rule['when']): RuleBody['when'] {
+  return stripWhen(conditionToPolicy(node))
+}
+
 function conditionToPolicy(node: Rule['when']): ConditionGroup {
   if ('combinator' in node) {
     const children = (node.children ?? []).map((child) => {
       if ('combinator' in child) return conditionToPolicy(child)
       return {
         id: createConditionId(),
-        field: (child.field || 'total_eur') as CondField,
-        op: child.op as CondOp,
-        value:
-          child.value === undefined || child.value === null
-            ? ''
-            : typeof child.value === 'string'
-              ? child.value
-              : JSON.stringify(child.value),
+        field: (child.field || 'quantity') as CondField,
+        op: (child.op || 'eq') as CondOp,
+        value: leafValue(child.value),
       } satisfies ConditionLeaf
     })
+    // Preserve empty `when` (always-match). Do not inject a placeholder leaf.
     return {
       id: createConditionId(),
       combinator: node.combinator,
-      children:
-        children.length > 0
-          ? children
-          : [
-              {
-                id: createConditionId(),
-                field: 'total_eur' as CondField,
-                op: 'gt' as CondOp,
-                value: '',
-              },
-            ],
+      children,
     }
   }
   return {
@@ -217,14 +237,9 @@ function conditionToPolicy(node: Rule['when']): ConditionGroup {
     children: [
       {
         id: createConditionId(),
-        field: (node.field || 'total_eur') as CondField,
-        op: node.op as CondOp,
-        value:
-          node.value === undefined || node.value === null
-            ? ''
-            : typeof node.value === 'string'
-              ? node.value
-              : JSON.stringify(node.value),
+        field: (node.field || 'quantity') as CondField,
+        op: (node.op || 'eq') as CondOp,
+        value: leafValue(node.value),
       },
     ],
   }
@@ -254,7 +269,7 @@ function stripWhen(node: ConditionGroup | ConditionLeaf): RuleBody['when'] {
     op: node.op,
   }
   if (node.op !== 'is_empty' && node.op !== 'not_empty') {
-    return { ...leaf, value: node.value }
+    return { ...leaf, value: leafValueForApi(node.op, node.value) }
   }
   return leaf
 }
@@ -311,6 +326,13 @@ export function AgentsPage() {
     [],
   )
   const rolesQuery = useApiQuery(['roles', 'list'], fetchRoles)
+
+  const fetchSpecialists = useCallback(() => listSpecialists(), [])
+  const specialistsQuery = useApiQuery(['specialists', 'list'], fetchSpecialists)
+  const specialists = useMemo(
+    () => specialistsOrMock(specialistsQuery.data?.items),
+    [specialistsQuery.data?.items],
+  )
 
   const listItems = listQuery.data?.items ?? EMPTY_AGENTS
   const servers = serversQuery.data?.items ?? EMPTY_SERVERS
@@ -500,6 +522,7 @@ export function AgentsPage() {
               agent={live}
               servers={servers}
               roles={roles}
+              specialists={specialists}
               onAgentUpdated={(next) => {
                 upsertAgent(next)
                 refetchList()
@@ -611,6 +634,7 @@ function AgentDetail({
   agent,
   servers,
   roles,
+  specialists,
   onAgentUpdated,
   onRevoked,
   onAddMcp,
@@ -620,6 +644,7 @@ function AgentDetail({
   agent: Agent
   servers: Server[]
   roles: RoleSummary[]
+  specialists: Specialist[]
   onAgentUpdated: (agent: Agent) => void
   onRevoked: (agent: Agent) => void
   onAddMcp: (server: Server) => void
@@ -667,7 +692,7 @@ function AgentDetail({
     .filter((s): s is Server => Boolean(s))
   const available = servers.filter((s) => !agent.mcpServerIds.includes(s.id))
   const assignableRoles = roles.filter((r) => r.status !== 'archived')
-  const specialist = mockSpecialists.find((s) => s.agentId === agent.id)
+  const specialist = specialists.find((s) => s.agentId === agent.id)
   const immersive = quotaWizardOpen
 
   async function handleRoleChange(next: string) {
@@ -737,7 +762,8 @@ function AgentDetail({
             prev.tool !== body.tool ||
             prev.then !== body.then ||
             prev.enabled !== body.enabled ||
-            JSON.stringify(prev.when) !== JSON.stringify(body.when)
+            JSON.stringify(whenForCompare(prev.when)) !==
+              JSON.stringify(body.when)
           if (changed) {
             await updateRule(agent.id, rule.id, body)
           }

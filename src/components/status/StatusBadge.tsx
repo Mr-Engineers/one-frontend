@@ -73,7 +73,10 @@ const specialistHealthTheme: Record<
 
 const agentTheme: Record<string, { theme: BadgeTheme; label: string }> = {
   [AGENT_IDS.purchasing]: { theme: BadgeTheme.Blue, label: 'Purchasing' },
+  purchasing: { theme: BadgeTheme.Blue, label: 'Purchasing' },
+  'purchasing-agent': { theme: BadgeTheme.Blue, label: 'Purchasing' },
   [AGENT_IDS.support]: { theme: BadgeTheme.Orange, label: 'Support' },
+  support: { theme: BadgeTheme.Orange, label: 'Support' },
 }
 
 export function StatusBadge({
@@ -114,9 +117,12 @@ export function AgentBadge({
   agentId,
   size = 'table',
 }: {
-  agentId: string
+  agentId: string | null | undefined
   size?: 'default' | 'table'
 }) {
+  if (agentId == null || agentId === '') {
+    return <ThemedBadge text="Unbound" theme={BadgeTheme.Gray} size={size} />
+  }
   const entry = agentTheme[agentId]
   const theme = entry?.theme ?? BadgeTheme.Gray
   const label = entry?.label ?? agentId

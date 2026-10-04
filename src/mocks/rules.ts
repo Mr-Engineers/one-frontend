@@ -32,12 +32,14 @@ export function emptyConditionGroup(
 
 export function emptyConditionLeaf(
   field: CondField = 'total_eur',
+  op: CondOp = 'eq',
+  value = '',
 ): ConditionLeaf {
   return {
     id: createConditionId(),
     field,
-    op: 'gt',
-    value: '',
+    op,
+    value,
   }
 }
 
@@ -48,6 +50,77 @@ export function isConditionGroup(
 }
 
 export const RULE_FIELDS: RuleFieldDef[] = [
+  {
+    id: 'qty_ratio_pct',
+    label: 'qty_ratio_pct',
+    type: 'number',
+    tools: ['marketplace.place_order', 'warehouse.register_po', '*'],
+    computed: true,
+  },
+  {
+    id: 'quantity',
+    label: 'quantity',
+    type: 'number',
+    tools: ['marketplace.place_order', 'warehouse.register_po'],
+  },
+  {
+    id: 'qty_needed',
+    label: 'qty_needed',
+    type: 'number',
+    tools: ['marketplace.place_order', 'warehouse.register_po', '*'],
+    computed: true,
+  },
+  {
+    id: 'sku_needed',
+    label: 'sku_needed',
+    type: 'enum',
+    options: ['true', 'false'],
+    tools: ['marketplace.place_order', '*'],
+    computed: true,
+  },
+  {
+    id: 'sku',
+    label: 'sku',
+    type: 'text',
+    tools: ['marketplace.*', 'warehouse.*'],
+  },
+  {
+    id: 'order_value_minor',
+    label: 'order_value_minor',
+    type: 'number',
+    tools: ['marketplace.place_order', '*'],
+    computed: true,
+  },
+  {
+    id: 'offer_seen_in_session',
+    label: 'offer_seen_in_session',
+    type: 'enum',
+    options: ['true', 'false'],
+    tools: ['marketplace.place_order', '*'],
+    computed: true,
+  },
+  {
+    id: 'merchant_known',
+    label: 'merchant_known',
+    type: 'enum',
+    options: ['true', 'false'],
+    tools: ['marketplace.place_order', '*'],
+    computed: true,
+  },
+  {
+    id: 'merchant_id',
+    label: 'merchant_id',
+    type: 'text',
+    tools: ['marketplace.place_order', '*'],
+    computed: true,
+  },
+  {
+    id: 'merchant_domain_age_days',
+    label: 'merchant_domain_age_days',
+    type: 'number',
+    tools: ['marketplace.place_order', '*'],
+    computed: true,
+  },
   {
     id: 'shop_location',
     label: 'shop_location',
@@ -165,10 +238,48 @@ export function countRulesForMcp(rules: PolicyRule[], serverId: string): number 
   return rules.filter((r) => mcpServerForTool(r.tool)?.id === serverId).length
 }
 
-export function fieldsForTool(tool: string): RuleFieldDef[] {
-  return RULE_FIELDS.filter((f) =>
-    f.tools.some((g) => toolMatchesGlob(tool, g)),
+export function fieldsForTool(
+  tool: string,
+  catalog: RuleFieldDef[] = RULE_FIELDS,
+): RuleFieldDef[] {
+  return catalog.filter((f) =>
+    f.tools.some((g) => {
+      if (g === '*' || tool === '*') return true
+      // Concrete rule tool vs field glob / exact id
+      if (toolMatchesGlob(tool, g)) return true
+      // Rule authored as namespace glob (e.g. warehouse.*) — include fields in that ns
+      if (tool.endsWith('.*')) {
+        const prefix = tool.slice(0, -1)
+        return (
+          g === tool ||
+          g.startsWith(prefix) ||
+          (g.endsWith('.*') && g.slice(0, -1) === prefix)
+        )
+      }
+      return false
+    }),
   )
+}
+
+/** Map GET /agents/{id}/rules/meta.fields into editor field defs. */
+export function fieldDefsFromMeta(
+  fields: Array<{
+    id: string
+    label: string
+    type: 'number' | 'enum' | 'text'
+    values?: unknown[]
+    tools: string[]
+    computed?: boolean
+  }>,
+): RuleFieldDef[] {
+  return fields.map((f) => ({
+    id: f.id,
+    label: f.label,
+    type: f.type,
+    tools: f.tools,
+    computed: f.computed,
+    options: f.values?.map((v) => String(v)),
+  }))
 }
 
 export function operatorsForField(type: RuleFieldDef['type']): CondOp[] {
@@ -179,6 +290,19 @@ export function operatorsForField(type: RuleFieldDef['type']): CondOp[] {
     return ['eq', 'neq', 'in', 'not_in', 'is_empty', 'not_empty']
   }
   return ['eq', 'neq', 'in', 'not_in', 'is_empty', 'not_empty']
+}
+
+/** First valid op (+ optional enum default) for a field def. */
+export function leafDefaultsForField(def?: RuleFieldDef): {
+  op: CondOp
+  value: string
+} {
+  if (!def) return { op: 'eq', value: '' }
+  const op = operatorsForField(def.type)[0] ?? 'eq'
+  if (def.type === 'enum' && def.options?.[0]) {
+    return { op, value: def.options[0] }
+  }
+  return { op, value: '' }
 }
 
 export function condOpNeedsValue(op: CondOp): boolean {

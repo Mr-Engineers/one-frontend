@@ -20,6 +20,7 @@ import {
   formatRelativeAge,
   humanizeDecisionOutcome,
   humanizeDecisionStage,
+  humanizeModelChoice,
   humanizeRuleRef,
 } from '@/components/list/DetailMeta'
 import { EmptyState, ListEmptyState } from '@/components/list/EmptyState'
@@ -80,13 +81,6 @@ function buildFilterColumns(
       getValue: (r) => r.ttlSeconds,
     },
   ]
-}
-
-function humanizeModelChoice(choice: string): string {
-  if (choice.includes('human')) return 'Needs your review'
-  if (choice.includes('allow')) return 'Leans allow'
-  if (choice.includes('deny')) return 'Leans deny'
-  return choice.replaceAll('_', ' ')
 }
 
 export function ApprovalsPage() {
